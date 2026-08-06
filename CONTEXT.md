@@ -17,7 +17,7 @@ _Avoid_: Bound input, host input, search field
 
 **Suggestion**:
 A candidate improvement to the Search Text offered to the user. Every Correction,
-Expansion, and Structured Query is a kind of Suggestion.
+Expansion, and Expression is a kind of Suggestion.
 _Avoid_: Recommendation, candidate
 
 **Correction**:
@@ -29,11 +29,11 @@ A Suggestion that broadens the Search Text with related terms, synonyms, or
 alternate phrasings to widen recall.
 _Avoid_: Query expansion, synonym suggestion
 
-**Structured Query**:
+**Expression**:
 A Suggestion that reformulates the Search Text as a fielded and/or boolean query
 (e.g. `title:"climate change" AND year:2020..2023`). Field filters and boolean
 operators are both part of this single concept, not separate suggestion kinds.
-_Avoid_: Fielded query, boolean query, advanced query
+_Avoid_: Structured query, fielded query, boolean query, advanced query
 
 **Accept**:
 The user's action of choosing a Suggestion to act on.
@@ -47,14 +47,14 @@ _Avoid_: Accept mode, accept behavior, apply strategy
 
 **Fields**:
 The description of what fields exist in the Target's backend, enabling
-Structured Query suggestions. Declared as free-form text, inline JSON, or an
+Expression suggestions. Declared as free-form text, inline JSON, or an
 imperative property; without Fields, only Correction and Expansion Suggestions
 are offered.
 _Avoid_: Schema, field schema, index schema
 
 **Format**:
 The preset (or custom render function) that tells `<query-shaper>` how to
-render a Structured Query's field/value pairs into a specific backend's actual
+render an Expression's field/value pairs into a specific backend's actual
 query format — e.g. a Lucene-style string, or URL parameters for facet-driven
 backends.
 _Avoid_: Syntax, query dialect, query syntax, render mode

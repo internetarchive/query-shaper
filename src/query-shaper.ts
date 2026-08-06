@@ -28,12 +28,12 @@ export type LanguageModelAPI = {
 export type RawSuggestion =
   | { kind: 'correction'; text: string }
   | { kind: 'expansion'; text: string }
-  | { kind: 'structured-query'; fields: FieldValue[] }
+  | { kind: 'expression'; fields: FieldValue[] }
 
 export type Suggestion =
   | { kind: 'correction'; text: string }
   | { kind: 'expansion'; text: string }
-  | { kind: 'structured-query'; text: string; fields: FieldValue[] }
+  | { kind: 'expression'; text: string; fields: FieldValue[] }
 
 const DEBOUNCE_MS = 400
 const DOWNLOAD_PROMPT_DISMISSED_KEY = 'query-shaper:download-prompt-dismissed'
@@ -41,7 +41,7 @@ const DOWNLOAD_PROMPT_DISMISSED_KEY = 'query-shaper:download-prompt-dismissed'
 const KIND_CONFIG = [
   { kind: 'correction', defaultCap: 1 },
   { kind: 'expansion', defaultCap: 2 },
-  { kind: 'structured-query', defaultCap: 3 },
+  { kind: 'expression', defaultCap: 3 },
 ] as const
 
 const KIND_ORDER = KIND_CONFIG.map((k) => k.kind)
@@ -79,7 +79,7 @@ const SUGGESTIONS_RESPONSE_SCHEMA = {
       items: {
         type: 'object',
         properties: {
-          kind: { type: 'string', enum: ['correction', 'expansion', 'structured-query'] },
+          kind: { type: 'string', enum: ['correction', 'expansion', 'expression'] },
           text: { type: 'string' },
           fields: {
             type: 'array',
@@ -339,11 +339,11 @@ export class QueryShaper extends HTMLElement {
       }
     }
     const parsed = JSON.parse(raw) as { suggestions: RawSuggestion[] }
-    const allowStructuredQuery = this.fields !== undefined
+    const allowExpression = this.fields !== undefined
     const maxSuggestions = Number(this.getAttribute('max-suggestions') ?? Infinity)
     const kindCounts: Record<string, number> = {}
     const suggestions = parsed.suggestions
-      .filter((s) => allowStructuredQuery || s.kind !== 'structured-query')
+      .filter((s) => allowExpression || s.kind !== 'expression')
       .filter((s) => {
         const count = (kindCounts[s.kind] ?? 0) + 1
         kindCounts[s.kind] = count
@@ -371,8 +371,8 @@ export class QueryShaper extends HTMLElement {
   }
 
   #toSuggestion(raw: RawSuggestion): Suggestion {
-    if (raw.kind === 'structured-query') {
-      return { kind: 'structured-query', fields: raw.fields, text: this.#renderFormat(raw.fields) }
+    if (raw.kind === 'expression') {
+      return { kind: 'expression', fields: raw.fields, text: this.#renderFormat(raw.fields) }
     }
     return raw
   }

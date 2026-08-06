@@ -28,10 +28,10 @@ attribute value is JSON-parsed first; if that fails, treated as a free-form
 description string (e.g. `"title, author, language:iso-639-1, date (allowed
 patterns YYYY[-MM[-DD]]), categories (comma-separated list)"`). The `.fields`
 property always wins when both are set. Absent entirely → only Correction and
-Expansion suggestions are generated; no Structured Query.
+Expansion suggestions are generated; no Expression.
 
 **`format`** (attribute): a built-in preset name telling query-shaper how to
-render a Structured Query's field/value pairs into the backend's real query
+render an Expression's field/value pairs into the backend's real query
 output:
 
 - `lucene` — `field:value` tokens, space-separated, boolean operators/grouping
@@ -46,7 +46,7 @@ not just a query string — see the Wayback example below).
 
 **`max-suggestions`** (attribute): global cap on total suggestions shown
 across all kinds combined. Sensible built-in per-kind defaults apply
-underneath (e.g. up to 3 Structured Query / 2 Expansion / 1 Correction); this
+underneath (e.g. up to 3 Expression / 2 Expansion / 1 Correction); this
 attribute only trims the total, it doesn't expose per-kind knobs yet.
 
 **`max-history`** (attribute): cap on stored History entries, and on how many
@@ -90,14 +90,14 @@ type Suggestion =
   | { kind: "correction"; text: string }
   | { kind: "expansion"; text: string }
   | {
-      kind: "structured-query";
+      kind: "expression";
       text: string; // rendered, per the configured Format
       fields: Array<{ field: string; value: string; operator?: string }>;
     };
 ```
 
 Every Suggestion the model returns already has typo corrections folded into
-its basis text (a Structured Query never faithfully encodes a typo the model
+its basis text (an Expression never faithfully encodes a typo the model
 also flagged as a Correction) — see the unified-generation note below.
 
 ## Generation flow
@@ -118,7 +118,7 @@ also flagged as a Correction) — see the unified-generation note below.
    kind and pre-sorted by the model. No staged/sequential correction-first
    pass — one call, one response, avoiding both the latency and the
    response-merging complexity a staged pipeline would add.
-3. **Render**: grouped by kind (Correction / Expansion / Structured Query),
+3. **Render**: grouped by kind (Correction / Expansion / Expression),
    up to `max-suggestions` total — unless `headless`, in which case only
    `query-shaper-suggestions` fires.
 4. **Accept**: apply `action` (fill the Target / submit its form / navigate
@@ -152,7 +152,7 @@ result-fetching):
 3. **Wayback Machine collection-search**, `gov` collection — Fields:
    `language`, `site`, `year`, `pubdate` (the collection itself, e.g. `gov`,
    is fixed per-instance configuration baked into the `template`, never a
-   Field a Structured Query varies — collections have their own namespaced
+   Field an Expression varies — collections have their own namespaced
    pages today, not a single unified search box). Format: `lucene`; `template`:
    `https://web.archive.org/collection-search/gov/{searchTerms}` (placeholder
    in a path segment, percent-encoded — OpenSearch templates aren't limited

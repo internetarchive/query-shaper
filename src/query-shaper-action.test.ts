@@ -72,7 +72,7 @@ describe('QueryShaper Action', () => {
     })
 
     shaper.accept({
-      kind: 'structured-query',
+      kind: 'expression',
       text: 'book language:en',
       fields: [{ field: 'language', value: 'en' }],
     })

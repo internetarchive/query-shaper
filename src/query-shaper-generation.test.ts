@@ -70,12 +70,12 @@ describe('QueryShaper generation', () => {
     expect(promptText).toContain('cli')
   })
 
-  it('renders a structured-query suggestion using the configured lucene format', async () => {
+  it('renders an expression suggestion using the configured lucene format', async () => {
     const lm = mockLanguageModel({
       promptResponse: {
         suggestions: [
           {
-            kind: 'structured-query',
+            kind: 'expression',
             fields: [
               { field: 'title', value: '"climate change"' },
               { field: 'year', value: '2020', operator: 'AND' },
@@ -104,7 +104,7 @@ describe('QueryShaper generation', () => {
 
     expect(suggestionEvents[0]).toEqual([
       {
-        kind: 'structured-query',
+        kind: 'expression',
         text: 'title:"climate change" AND year:2020',
         fields: [
           { field: 'title', value: '"climate change"' },
@@ -114,12 +114,12 @@ describe('QueryShaper generation', () => {
     ])
   })
 
-  it('drops structured-query suggestions when no Fields are configured', async () => {
+  it('drops expression suggestions when no Fields are configured', async () => {
     const lm = mockLanguageModel({
       promptResponse: {
         suggestions: [
           { kind: 'correction', text: 'climate change' },
-          { kind: 'structured-query', fields: [{ field: 'title', value: 'climate change' }] },
+          { kind: 'expression', fields: [{ field: 'title', value: 'climate change' }] },
         ],
       },
     })
@@ -143,12 +143,12 @@ describe('QueryShaper generation', () => {
     expect(suggestionEvents[0]).toEqual([{ kind: 'correction', text: 'climate change' }])
   })
 
-  it('renders a structured-query suggestion using the url-params format', async () => {
+  it('renders an expression suggestion using the url-params format', async () => {
     const lm = mockLanguageModel({
       promptResponse: {
         suggestions: [
           {
-            kind: 'structured-query',
+            kind: 'expression',
             fields: [
               { field: 'q', value: 'book' },
               { field: 'language', value: 'en' },
@@ -178,10 +178,10 @@ describe('QueryShaper generation', () => {
     expect((suggestionEvents[0] as Array<{ text: string }>).at(0)?.text).toBe('q=book&language=en')
   })
 
-  it('renders a structured-query suggestion using a custom .format function', async () => {
+  it('renders an expression suggestion using a custom .format function', async () => {
     const lm = mockLanguageModel({
       promptResponse: {
-        suggestions: [{ kind: 'structured-query', fields: [{ field: 'title', value: 'book' }] }],
+        suggestions: [{ kind: 'expression', fields: [{ field: 'title', value: 'book' }] }],
       },
     })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
@@ -244,13 +244,13 @@ describe('QueryShaper generation', () => {
         suggestions: [
           { kind: 'correction', text: 'c1' },
           { kind: 'correction', text: 'c2' },
-          { kind: 'structured-query', fields: [{ field: 'title', value: 's1' }] },
+          { kind: 'expression', fields: [{ field: 'title', value: 's1' }] },
           { kind: 'expansion', text: 'e1' },
-          { kind: 'structured-query', fields: [{ field: 'title', value: 's2' }] },
+          { kind: 'expression', fields: [{ field: 'title', value: 's2' }] },
           { kind: 'expansion', text: 'e2' },
-          { kind: 'structured-query', fields: [{ field: 'title', value: 's3' }] },
+          { kind: 'expression', fields: [{ field: 'title', value: 's3' }] },
           { kind: 'expansion', text: 'e3' },
-          { kind: 'structured-query', fields: [{ field: 'title', value: 's4' }] },
+          { kind: 'expression', fields: [{ field: 'title', value: 's4' }] },
         ],
       },
     })
@@ -275,7 +275,7 @@ describe('QueryShaper generation', () => {
     const countByKind = (kind: string) => suggestions.filter((s) => s.kind === kind).length
     expect(countByKind('correction')).toBe(1)
     expect(countByKind('expansion')).toBe(2)
-    expect(countByKind('structured-query')).toBe(3)
+    expect(countByKind('expression')).toBe(3)
     expect(suggestions).toHaveLength(6)
   })
 

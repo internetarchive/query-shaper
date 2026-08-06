@@ -103,7 +103,7 @@ describe('QueryShaper popup', () => {
           suggestions: [
             { kind: 'expansion', text: 'global warming' },
             { kind: 'correction', text: 'climate change' },
-            { kind: 'structured-query', text: 'title:climate', fields: [] },
+            { kind: 'expression', text: 'title:climate', fields: [] },
           ],
         },
       }),
@@ -113,7 +113,7 @@ describe('QueryShaper popup', () => {
     expect(groups).toHaveLength(3)
     expect(groups?.[0]?.getAttribute('data-kind')).toBe('correction')
     expect(groups?.[1]?.getAttribute('data-kind')).toBe('expansion')
-    expect(groups?.[2]?.getAttribute('data-kind')).toBe('structured-query')
+    expect(groups?.[2]?.getAttribute('data-kind')).toBe('expression')
     expect(groups?.[0]?.querySelector('[role="option"]')?.textContent).toBe('climate change')
   })
 
