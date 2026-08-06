@@ -348,9 +348,12 @@ is dropped and `query-shaper-error` fires with `phase:
 
 ## Demo plan
 
-A single demo page with multiple `<query-shaper>` instances, each `Accept`
-navigating to the backend's real results page (no CORS dependency, no inline
-result-fetching):
+A single demo page with multiple `<query-shaper>` instances. `Accept`
+produces something directly usable against that instance's real backend —
+navigating to a results page for four of them, and displaying/linking to a
+constructed REST URL for the fifth (Ask Me Twice, a JSON API with no results
+page of its own and no CORS support) — no inline result-fetching in any
+case.
 
 1. **Internet Archive** (`archive.org/advancedsearch.php`) — Fields:
    `mediatype`, `year`, `creator`, `subject`, `language`; Format: `lucene`
@@ -372,6 +375,24 @@ result-fetching):
    configuration mode: no Fields declared (Correction/Expansion-only
    fallback), a free-form text description, an inline JSON schema, and a
    custom `.format` render function.
+5. **Ask Me Twice** (`wayback-api.archive.org/services/amt-api`, archive.org's
+   internal AI-response-tracking API) — confirmed live, GET-only. Its data
+   endpoints do send `Access-Control-Allow-Origin: *` (confirmed with an
+   `Origin` header on the request — a plain request without one won't show
+   it, which is normal CORS behavior, not a sign it's absent), so inline
+   fetching is technically possible; the demo still doesn't do it, for the
+   same reason the other four don't — Accept produces something to act on,
+   not a rendered result. `base`:
+   `https://wayback-api.archive.org/services/amt-api/api/v1`; Fields as a
+   Resource-keyed object with two endpoints: `responses` (`provider`,
+   `model_id`, `question_slug`, `day`, `error_type` — real, confirmed query
+   parameters on the live list endpoint) and `questions/{slug}` (a single
+   `slug` field, demonstrating path-parameter substitution; the model's
+   guessed slug is trusted, not validated, same as every other `rest-api`
+   Resource). Format: `rest-api`. Action: `output` with an explicit
+   `destination`, which the demo page's own script turns into a clickable
+   link (the URL is both the link text and its `href` — one element, not a
+   separate link alongside a plain-text display) on `query-shaper-accept`.
 
 ## Implementation defaults (not separately grilled — flagging, not asking)
 

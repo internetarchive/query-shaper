@@ -3,21 +3,220 @@
   <head>
     <meta charset="UTF-8" />
     <title>Query Shaper — Demo</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 46rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        line-height: 1.5;
+      }
+      section {
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        margin-block: 1.5rem;
+      }
+      section h2 {
+        margin-top: 0;
+      }
+      input[type='search'] {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.5em 0.75em;
+        font-size: 1rem;
+      }
+      pre {
+        background: #f5f5f5;
+        padding: 0.75em;
+        overflow-x: auto;
+        white-space: pre-wrap;
+      }
+      code {
+        background: #f5f5f5;
+        padding: 0.1em 0.3em;
+      }
+      query-shaper {
+        position: relative;
+        display: block;
+      }
+      query-shaper::part(popup) {
+        position: absolute;
+        z-index: 10;
+        width: 100%;
+      }
+    </style>
   </head>
   <body>
     <h1>Query Shaper — Demo</h1>
     <p>
-      Placeholder demo, proving the element loads and binds to its Target. The
-      full set of real-backend instances (Internet Archive, Open Library,
-      Wayback Machine, generic configs) is tracked in
-      <a href="https://git.archive.org/sawood/query-shaper/-/work_items/2"
-        >issue #2</a
-      >.
+      Each instance below enhances a plain search input with on-device AI
+      Suggestions (Correction, Expansion, Expression). Type a natural-language
+      query, wait a moment for Suggestions to appear, then accept one to see
+      that instance's configured Action run. Requires Chrome with the
+      on-device <code>LanguageModel</code> available — see
+      <a href="../README.md">README.md</a>.
     </p>
-    <form>
-      <input id="search" type="search" placeholder="Try a search…" />
-      <query-shaper for="search"></query-shaper>
-    </form>
+
+    <section>
+      <h2>1. Internet Archive</h2>
+      <p>
+        Fields declared as an inline JSON schema; Format <code>lucene</code>;
+        Action <code>opensearch</code> against a hand-built template (no
+        published OpenSearch document for archive.org).
+      </p>
+      <form>
+        <input id="ia-search" type="search" placeholder="e.g. climate change documentaries from 2020" />
+        <query-shaper
+          for="ia-search"
+          fields='[{"name":"mediatype"},{"name":"year","type":"number"},{"name":"creator"},{"name":"subject"},{"name":"language"}]'
+          format="lucene"
+          action="opensearch"
+          template="https://archive.org/search?query={searchTerms}"
+        ></query-shaper>
+      </form>
+    </section>
+
+    <section>
+      <h2>2. Open Library</h2>
+      <p>
+        Format <code>lucene</code>; Action <code>opensearch</code>, with the
+        <code>template</code> sourced directly from Open Library's real
+        <a href="https://openlibrary.org/static/opensearch.xml">OpenSearch description document</a>.
+      </p>
+      <form>
+        <input id="ol-search" type="search" placeholder="e.g. books by Cory Doctorow in English" />
+        <query-shaper
+          for="ol-search"
+          fields='[{"name":"author"},{"name":"title"},{"name":"language","description":"ISO 639 code"},{"name":"first_publish_year","type":"number"}]'
+          format="lucene"
+          action="opensearch"
+          template="https://openlibrary.org/search?q={searchTerms}&mode=everything"
+        ></query-shaper>
+      </form>
+    </section>
+
+    <section>
+      <h2>3. Wayback Machine — <code>gov</code> collection search</h2>
+      <p>
+        The <code>gov</code> collection itself is fixed configuration baked
+        into the <code>template</code>, never a Field the model varies.
+        Format <code>lucene</code>; the <code>{searchTerms}</code> placeholder
+        sits in a path segment, not a query string.
+      </p>
+      <form>
+        <input id="wb-search" type="search" placeholder="e.g. English-language sites about climate policy" />
+        <query-shaper
+          for="wb-search"
+          fields='[{"name":"language"},{"name":"site"},{"name":"year","type":"number"},{"name":"pubdate","type":"date"}]'
+          format="lucene"
+          action="opensearch"
+          template="https://web.archive.org/collection-search/gov/{searchTerms}"
+        ></query-shaper>
+      </form>
+    </section>
+
+    <section>
+      <h2>4. Ask Me Twice (REST API)</h2>
+      <p>
+        A live, GET-only JSON API — no results page to navigate to, so
+        <code>action="output"</code> fills the Target and writes the
+        constructed URL below as a clickable link (it does support CORS on
+        its data endpoints, but this demo still doesn't fetch inline, for the
+        same reason none of the others do — Accept produces something to act
+        on, not a rendered result). Fields declare two endpoints:
+        <code>responses</code> (list, filterable by real query parameters)
+        and <code>questions/{slug}</code> (single-item lookup by a
+        model-guessed slug, demonstrating path-parameter substitution).
+        Format <code>rest-api</code>; <code>base</code> is the API's real
+        root.
+      </p>
+      <form>
+        <input id="amt-search" type="search" placeholder="e.g. OpenAI responses from today that had errors" />
+        <query-shaper
+          id="amt-shaper"
+          for="amt-search"
+          base="https://wayback-api.archive.org/services/amt-api/api/v1"
+          fields='{
+            "responses": [
+              {"name": "provider", "description": "AI provider slug, e.g. openai, anthropic, google"},
+              {"name": "model_id", "description": "provider/model-name slug, e.g. openai/gpt-4"},
+              {"name": "question_slug", "description": "kebab-case slug of the question asked"},
+              {"name": "day", "type": "date", "description": "YYYY-MM-DD"},
+              {"name": "error_type", "description": "one of: any, incomplete, none, rejected"}
+            ],
+            "questions/{slug}": [
+              {"name": "slug", "description": "kebab-case slug matching the question wording as closely as possible"}
+            ]
+          }'
+          format="rest-api"
+          action="output"
+          destination="#amt-output"
+        ></query-shaper>
+      </form>
+      <p id="amt-output"></p>
+    </section>
+
+    <section>
+      <h2>5. No Fields declared</h2>
+      <p>
+        Without Fields, only Correction and Expansion Suggestions are
+        offered — no Expression.
+      </p>
+      <input id="generic-none" type="search" placeholder="e.g. a mispelled or vague query" />
+      <query-shaper for="generic-none"></query-shaper>
+    </section>
+
+    <section>
+      <h2>6. Free-form text Fields</h2>
+      <p>
+        A loosely specified, human-written Fields description still produces
+        sensible Expression Suggestions.
+      </p>
+      <input id="generic-freeform" type="search" placeholder="e.g. French books by Verne from the 1870s" />
+      <query-shaper
+        for="generic-freeform"
+        fields="title, author, language:iso-639-1, date (allowed patterns YYYY[-MM[-DD]]), categories (comma-separated list)"
+      ></query-shaper>
+    </section>
+
+    <section>
+      <h2>7. Inline JSON Fields</h2>
+      <p>The more precise, structured declaration path.</p>
+      <input id="generic-json" type="search" placeholder="e.g. electronics under $50 in stock" />
+      <query-shaper
+        for="generic-json"
+        fields='[{"name":"category"},{"name":"price","type":"number"},{"name":"in_stock","description":"yes or no"}]'
+      ></query-shaper>
+    </section>
+
+    <section>
+      <h2>8. Custom <code>.format</code> render function</h2>
+      <p>
+        The escape hatch for backends neither built-in preset covers — set
+        imperatively since a render function can't be expressed as an
+        attribute.
+      </p>
+      <input id="generic-custom" type="search" placeholder="e.g. electronics under $50 in stock" />
+      <query-shaper id="generic-custom-shaper" for="generic-custom" fields='[{"name":"category"},{"name":"price","type":"number"}]'></query-shaper>
+    </section>
+
     <script type="module" src="../src/index.ts"></script>
+    <script type="module">
+      customElements.whenDefined('query-shaper').then(() => {
+        document.querySelector('#generic-custom-shaper').format = (fields) =>
+          fields.map((f) => `${f.field ?? 'q'}=${f.value}`).join(';')
+
+        const amtShaper = document.querySelector('#amt-shaper')
+        const amtOutput = document.querySelector('#amt-output')
+        amtShaper.addEventListener('query-shaper-accept', (e) => {
+          const url = e.detail.suggestion.text
+          const link = document.createElement('a')
+          link.href = url
+          link.textContent = url
+          amtOutput.replaceChildren(link)
+        })
+      })
+    </script>
   </body>
 </html>
