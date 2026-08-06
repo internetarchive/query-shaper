@@ -36,12 +36,40 @@ export type Suggestion =
   | { kind: 'structured-query'; text: string; fields: FieldValue[] }
 
 const DEBOUNCE_MS = 400
+const DOWNLOAD_PROMPT_DISMISSED_KEY = 'query-shaper:download-prompt-dismissed'
 
-const DEFAULT_KIND_CAPS: Record<string, number> = {
-  correction: 1,
-  expansion: 2,
-  'structured-query': 3,
-}
+const KIND_CONFIG = [
+  { kind: 'correction', defaultCap: 1 },
+  { kind: 'expansion', defaultCap: 2 },
+  { kind: 'structured-query', defaultCap: 3 },
+] as const
+
+const KIND_ORDER = KIND_CONFIG.map((k) => k.kind)
+const DEFAULT_KIND_CAPS: Record<string, number> = Object.fromEntries(
+  KIND_CONFIG.map((k) => [k.kind, k.defaultCap]),
+)
+
+const SHADOW_STYLES = `
+  ul { list-style: none; margin: 0; padding: 0; }
+  [part="listbox"] {
+    background: var(--query-shaper-background, #fff);
+    border: 1px solid var(--query-shaper-border-color, #ccc);
+    color: var(--query-shaper-color, #111);
+    font-family: var(--query-shaper-font-family, inherit);
+  }
+  [part="option"] {
+    padding: var(--query-shaper-option-padding, 0.5em 0.75em);
+    cursor: pointer;
+  }
+  [part="option"][aria-selected="true"] {
+    background: var(--query-shaper-active-background, #e0e0ff);
+  }
+  [part="download-prompt"] {
+    background: var(--query-shaper-background, #fff);
+    color: var(--query-shaper-color, #111);
+    padding: var(--query-shaper-option-padding, 0.5em 0.75em);
+  }
+`
 
 const SUGGESTIONS_RESPONSE_SCHEMA = {
   type: 'object',
@@ -81,6 +109,24 @@ export function __resetSharedSessionForTests(): void {
 
 export class QueryShaper extends HTMLElement {
   static readonly tagName = 'query-shaper'
+
+  #listboxContainer: HTMLDivElement
+  #downloadPromptContainer: HTMLDivElement
+
+  constructor() {
+    super()
+    const root = this.attachShadow({ mode: 'open' })
+    const style = document.createElement('style')
+    style.textContent = SHADOW_STYLES
+    root.appendChild(style)
+    const popup = document.createElement('div')
+    popup.setAttribute('part', 'popup')
+    root.appendChild(popup)
+    this.#listboxContainer = document.createElement('div')
+    popup.appendChild(this.#listboxContainer)
+    this.#downloadPromptContainer = document.createElement('div')
+    popup.appendChild(this.#downloadPromptContainer)
+  }
 
   #fieldsOverride: Fields | undefined
   #hasFieldsOverride = false
@@ -129,19 +175,124 @@ export class QueryShaper extends HTMLElement {
 
   connectedCallback(): void {
     this.target?.setAttribute('autocomplete', 'off')
-    this.target?.addEventListener(
-      'focus',
-      () => {
-        void this.#ensureSession()
-      },
-      { once: true },
-    )
-    this.target?.addEventListener('input', () => this.#scheduleGeneration())
+    this.target?.addEventListener('focus', this.#onFocus, { once: true })
+    this.target?.addEventListener('input', this.#onInput)
+    this.target?.addEventListener('keydown', this.#onKeydownListener)
+    this.target?.addEventListener('blur', this.#onBlur)
     document.addEventListener('submit', this.#onDocumentSubmit)
+    this.addEventListener('query-shaper-suggestions', this.#onSuggestionsEvent)
+  }
+
+  #onFocus = (): void => {
+    void this.#ensureSession()
+  }
+
+  #onInput = (): void => {
+    this.#scheduleGeneration()
+  }
+
+  #onKeydownListener = (e: Event): void => {
+    this.#onKeydown(e as KeyboardEvent)
+  }
+
+  #onBlur = (): void => {
+    this.#renderSuggestions([])
+  }
+
+  #onSuggestionsEvent = (e: Event): void => {
+    this.#renderSuggestions((e as CustomEvent).detail.suggestions as Suggestion[])
+  }
+
+  #currentSuggestions: Suggestion[] = []
+  #activeIndex = -1
+
+  #renderSuggestions(suggestions: Suggestion[]): void {
+    if (this.hasAttribute('headless')) return
+    const byKind = new Map<string, Suggestion[]>()
+    for (const suggestion of suggestions) {
+      const bucket = byKind.get(suggestion.kind)
+      if (bucket) bucket.push(suggestion)
+      else byKind.set(suggestion.kind, [suggestion])
+    }
+    const grouped = KIND_ORDER.flatMap((kind) => byKind.get(kind) ?? [])
+    this.#currentSuggestions = grouped
+    this.#activeIndex = -1
+    this.target?.setAttribute('role', 'combobox')
+    this.target?.setAttribute('aria-expanded', grouped.length > 0 ? 'true' : 'false')
+    this.target?.removeAttribute('aria-activedescendant')
+
+    const root = this.#listboxContainer
+    root.innerHTML = ''
+    if (grouped.length === 0) {
+      this.target?.removeAttribute('aria-controls')
+      return
+    }
+    const list = document.createElement('ul')
+    list.id = 'query-shaper-listbox'
+    list.setAttribute('part', 'listbox')
+    list.setAttribute('role', 'listbox')
+    list.addEventListener('mousedown', (e) => e.preventDefault())
+    this.target?.setAttribute('aria-controls', list.id)
+    let index = 0
+    for (const kind of KIND_ORDER) {
+      const kindSuggestions = byKind.get(kind)
+      if (!kindSuggestions || kindSuggestions.length === 0) continue
+      const group = document.createElement('li')
+      group.setAttribute('part', 'option-group')
+      group.setAttribute('data-kind', kind)
+      const groupList = document.createElement('ul')
+      for (const suggestion of kindSuggestions) {
+        const option = document.createElement('li')
+        option.id = `query-shaper-option-${index}`
+        option.setAttribute('part', 'option')
+        option.setAttribute('role', 'option')
+        option.setAttribute('aria-selected', 'false')
+        option.textContent = suggestion.text
+        option.addEventListener('click', () => this.accept(suggestion))
+        groupList.appendChild(option)
+        index += 1
+      }
+      group.appendChild(groupList)
+      list.appendChild(group)
+    }
+    root.appendChild(list)
+  }
+
+  #onKeydown(e: KeyboardEvent): void {
+    if (this.#currentSuggestions.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      this.#setActiveIndex(Math.min(this.#activeIndex + 1, this.#currentSuggestions.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      this.#setActiveIndex(Math.max(this.#activeIndex - 1, 0))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      const active = this.#currentSuggestions[this.#activeIndex]
+      if (active) this.accept(active)
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      this.#renderSuggestions([])
+    }
+  }
+
+  #setActiveIndex(index: number): void {
+    this.#activeIndex = index
+    const options = this.#listboxContainer.querySelectorAll('[role="option"]')
+    options.forEach((option, i) => {
+      option.setAttribute('aria-selected', i === index ? 'true' : 'false')
+    })
+    const active = options[index]
+    if (active) this.target?.setAttribute('aria-activedescendant', active.id)
   }
 
   disconnectedCallback(): void {
+    this.target?.removeEventListener('focus', this.#onFocus)
+    this.target?.removeEventListener('input', this.#onInput)
+    this.target?.removeEventListener('keydown', this.#onKeydownListener)
+    this.target?.removeEventListener('blur', this.#onBlur)
     document.removeEventListener('submit', this.#onDocumentSubmit)
+    this.removeEventListener('query-shaper-suggestions', this.#onSuggestionsEvent)
     this.#session?.destroy()
     this.#session = undefined
   }
@@ -299,16 +450,58 @@ export class QueryShaper extends HTMLElement {
     const availability = await LM.availability()
     this.#emitStatus(availability)
     if (availability === 'available') {
-      if (!sharedBaseSession) {
-        sharedBaseSession = LM.create()
-      }
-      const base = await sharedBaseSession
-      this.#session = await base.clone()
+      this.#session = await this.#createSession(LM)
     }
+  }
+
+  async #createSession(LM: LanguageModelAPI): Promise<LanguageModelSession> {
+    if (!sharedBaseSession) {
+      sharedBaseSession = LM.create()
+    }
+    const base = await sharedBaseSession
+    return base.clone()
   }
 
   #emitStatus(status: LanguageModelAvailability): void {
     this.dispatchEvent(new CustomEvent('query-shaper-status', { detail: { status } }))
+    if (status === 'downloadable') {
+      this.#renderDownloadPrompt()
+    }
+  }
+
+  #renderDownloadPrompt(): void {
+    if (this.hasAttribute('headless')) return
+    if (localStorage.getItem(DOWNLOAD_PROMPT_DISMISSED_KEY) === 'true') return
+    const root = this.#downloadPromptContainer
+    root.innerHTML = ''
+
+    const prompt = document.createElement('div')
+    prompt.setAttribute('part', 'download-prompt')
+    prompt.textContent = 'Enable client-side search enhancement? '
+
+    const enableButton = document.createElement('button')
+    enableButton.setAttribute('part', 'download-enable')
+    enableButton.textContent = 'Enable'
+    enableButton.addEventListener('click', () => void this.#enableDownload())
+
+    const dismissButton = document.createElement('button')
+    dismissButton.setAttribute('part', 'download-dismiss')
+    dismissButton.textContent = 'Dismiss'
+    dismissButton.addEventListener('click', () => {
+      localStorage.setItem(DOWNLOAD_PROMPT_DISMISSED_KEY, 'true')
+      prompt.remove()
+    })
+
+    prompt.appendChild(enableButton)
+    prompt.appendChild(dismissButton)
+    root.appendChild(prompt)
+  }
+
+  async #enableDownload(): Promise<void> {
+    const LM = (globalThis as { LanguageModel?: LanguageModelAPI }).LanguageModel
+    if (!LM) return
+    this.#session = await this.#createSession(LM)
+    this.#downloadPromptContainer.innerHTML = ''
   }
 }
 

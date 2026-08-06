@@ -89,4 +89,18 @@ describe('QueryShaper session lifecycle', () => {
 
     expect(lm.availability).toHaveBeenCalledTimes(1)
   })
+
+  it('does not accumulate duplicate listeners across a disconnect/reconnect cycle', async () => {
+    const lm = mockLanguageModel({ availability: 'available' })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+
+    shaper.remove()
+    document.body.appendChild(shaper)
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.availability).toHaveBeenCalledTimes(1))
+
+    expect(lm.availability).toHaveBeenCalledTimes(1)
+  })
 })
