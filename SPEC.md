@@ -292,6 +292,13 @@ is dropped and `query-shaper-error` fires with `phase:
      inviting the user to enable client-side search enhancement, with a
      button to trigger the download and a dismiss option. Dismissal is
      remembered in localStorage (origin-scoped) so it doesn't reappear.
+   - `downloading` → (unless `headless`) show an inline, buttonless
+     informational message (a download is already in progress — there's
+     nothing to trigger or dismiss, just wait) — and proceed to create a
+     session anyway, since `create()` itself waits out an in-progress
+     download rather than requiring a fresh trigger. Once it resolves, the
+     message clears and a second `query-shaper-status` event fires with
+     `available`, reflecting the real transition.
 
    Both `availability()` and `create()` are called with the same
    `expectedInputs`/`expectedOutputs` options (`{ type: "text", languages:

@@ -111,7 +111,7 @@ const SHADOW_STYLES = `
   [part="option"][aria-selected="true"] {
     background: var(--query-shaper-active-background, #e0e0ff);
   }
-  [part="download-prompt"] {
+  [part="download-prompt"], [part="downloading-notice"] {
     background: var(--query-shaper-background, #fff);
     color: var(--query-shaper-color, #111);
     padding: var(--query-shaper-option-padding, 0.5em 0.75em);
@@ -673,8 +673,12 @@ export class QueryShaper extends HTMLElement {
     }
     const availability = await LM.availability(languageModelOptions())
     this.#emitStatus(availability)
-    if (availability === 'available') {
+    if (availability === 'available' || availability === 'downloading') {
       this.#session = await this.#createSession(LM)
+      this.#downloadPromptContainer.innerHTML = ''
+      if (availability === 'downloading') {
+        this.#emitStatus('available')
+      }
     }
   }
 
@@ -690,7 +694,20 @@ export class QueryShaper extends HTMLElement {
     this.dispatchEvent(new CustomEvent('query-shaper-status', { detail: { status } }))
     if (status === 'downloadable') {
       this.#renderDownloadPrompt()
+    } else if (status === 'downloading') {
+      this.#renderDownloadingNotice()
     }
+  }
+
+  #renderDownloadingNotice(): void {
+    if (this.hasAttribute('headless')) return
+    const root = this.#downloadPromptContainer
+    root.innerHTML = ''
+    const notice = document.createElement('div')
+    notice.setAttribute('part', 'downloading-notice')
+    notice.textContent =
+      "The AI model is downloading in the background — Suggestions will start to appear once it's ready."
+    root.appendChild(notice)
   }
 
   #renderDownloadPrompt(): void {

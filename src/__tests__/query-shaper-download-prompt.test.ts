@@ -76,4 +76,57 @@ describe('QueryShaper download prompt', () => {
     await vi.waitFor(() => expect(lm.create).toHaveBeenCalledTimes(1))
     await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
   })
+
+  it('shows an informational message with no buttons when status is downloading', async () => {
+    const lm = mockLanguageModel({ availability: 'downloading' })
+    let resolveCreate: (session: unknown) => void = () => {}
+    lm.create.mockImplementation(() => new Promise((resolve) => (resolveCreate = resolve)))
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(shaper.shadowRoot?.querySelector('[part="downloading-notice"]')).not.toBeNull())
+
+    const notice = shaper.shadowRoot?.querySelector('[part="downloading-notice"]')
+    expect(notice?.textContent).toMatch(/background/i)
+    expect(notice?.textContent).toMatch(/ready/i)
+    expect(notice?.querySelector('button')).toBeNull()
+
+    resolveCreate(lm.baseSession)
+  })
+
+  it('does not show the downloading notice when headless', async () => {
+    const lm = mockLanguageModel({ availability: 'downloading' })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+    shaper.setAttribute('headless', '')
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.availability).toHaveBeenCalledTimes(1))
+
+    expect(shaper.shadowRoot?.querySelector('[part="downloading-notice"]')).toBeNull()
+  })
+
+  it('creates a session once an in-progress download completes, clearing the notice and emitting available', async () => {
+    const lm = mockLanguageModel({ availability: 'downloading' })
+    let resolveCreate: (session: unknown) => void = () => {}
+    lm.create.mockImplementation(() => new Promise((resolve) => (resolveCreate = resolve)))
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+    const statusEvents: string[] = []
+    shaper.addEventListener('query-shaper-status', (e) => {
+      statusEvents.push((e as CustomEvent).detail.status)
+    })
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(shaper.shadowRoot?.querySelector('[part="downloading-notice"]')).not.toBeNull())
+    expect(statusEvents).toEqual(['downloading'])
+
+    resolveCreate(lm.baseSession)
+
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(statusEvents).toEqual(['downloading', 'available']))
+
+    expect(shaper.shadowRoot?.querySelector('[part="downloading-notice"]')).toBeNull()
+  })
 })
