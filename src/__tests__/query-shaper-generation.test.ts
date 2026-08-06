@@ -114,6 +114,110 @@ describe('QueryShaper generation', () => {
     ])
   })
 
+  it('renders bare, unscoped terms alongside field-scoped ones in the lucene format', async () => {
+    const lm = mockLanguageModel({
+      promptResponse: {
+        suggestions: [
+          {
+            kind: 'expression',
+            fields: [
+              { value: 'climate' },
+              { value: 'change' },
+              { field: 'year', value: '2020', operator: 'AND' },
+            ],
+          },
+        ],
+      },
+    })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+    shaper.setAttribute('fields', '[{"name":"year"}]')
+    shaper.setAttribute('format', 'lucene')
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const suggestionEvents: unknown[] = []
+    shaper.addEventListener('query-shaper-suggestions', (e) => {
+      suggestionEvents.push((e as CustomEvent).detail.suggestions)
+    })
+
+    input.value = 'climate change 2020'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
+
+    expect((suggestionEvents[0] as Array<{ text: string }>).at(0)?.text).toBe('climate change AND year:2020')
+  })
+
+  it('renders an expression suggestion using the simple-query-string format', async () => {
+    const lm = mockLanguageModel({
+      promptResponse: {
+        suggestions: [
+          {
+            kind: 'expression',
+            fields: [
+              { value: 'quick', operator: '+' },
+              { value: 'fox', operator: '-' },
+              { value: '"exact phrase"' },
+              { field: 'title', value: 'foo', operator: '+' },
+            ],
+          },
+        ],
+      },
+    })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+    shaper.setAttribute('fields', '[{"name":"title"}]')
+    shaper.setAttribute('format', 'simple-query-string')
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const suggestionEvents: unknown[] = []
+    shaper.addEventListener('query-shaper-suggestions', (e) => {
+      suggestionEvents.push((e as CustomEvent).detail.suggestions)
+    })
+
+    input.value = 'quick fox exact phrase'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
+
+    expect((suggestionEvents[0] as Array<{ text: string }>).at(0)?.text).toBe(
+      '+quick -fox "exact phrase" +title:foo',
+    )
+  })
+
+  it('renders a bare term under a default q key in the url-params format', async () => {
+    const lm = mockLanguageModel({
+      promptResponse: {
+        suggestions: [
+          { kind: 'expression', fields: [{ value: 'book' }, { field: 'language', value: 'en' }] },
+        ],
+      },
+    })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+    shaper.setAttribute('fields', '[{"name":"language"}]')
+    shaper.setAttribute('format', 'url-params')
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const suggestionEvents: unknown[] = []
+    shaper.addEventListener('query-shaper-suggestions', (e) => {
+      suggestionEvents.push((e as CustomEvent).detail.suggestions)
+    })
+
+    input.value = 'book in english'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
+
+    expect((suggestionEvents[0] as Array<{ text: string }>).at(0)?.text).toBe('q=book&language=en')
+  })
+
   it('drops expression suggestions when no Fields are configured', async () => {
     const lm = mockLanguageModel({
       promptResponse: {

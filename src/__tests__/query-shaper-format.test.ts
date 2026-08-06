@@ -22,6 +22,14 @@ describe('QueryShaper Format', () => {
     expect(shaper.format).toBe('url-params')
   })
 
+  it('resolves the simple-query-string preset from the format attribute', () => {
+    const shaper = new QueryShaper()
+    shaper.setAttribute('format', 'simple-query-string')
+    document.body.appendChild(shaper)
+
+    expect(shaper.format).toBe('simple-query-string')
+  })
+
   it('defaults to lucene when the format attribute is absent', () => {
     const shaper = new QueryShaper()
     document.body.appendChild(shaper)
@@ -34,7 +42,7 @@ describe('QueryShaper Format', () => {
     shaper.setAttribute('format', 'lucene')
     document.body.appendChild(shaper)
 
-    const customRenderer = (fields: { field: string; value: string }[]) =>
+    const customRenderer = (fields: { field?: string; value: string }[]) =>
       fields.map((f) => `${f.field}=${f.value}`).join('&')
     shaper.format = customRenderer
 

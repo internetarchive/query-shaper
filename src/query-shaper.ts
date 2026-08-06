@@ -7,8 +7,8 @@ export type FieldDescriptor = {
 
 export type Fields = string | FieldDescriptor[]
 
-export type FieldValue = { field: string; value: string; operator?: string }
-export type FormatPreset = 'lucene' | 'url-params'
+export type FieldValue = { field?: string; value: string; operator?: string }
+export type FormatPreset = 'lucene' | 'url-params' | 'simple-query-string'
 export type FormatRenderer = (fields: FieldValue[]) => string
 export type Format = FormatPreset | FormatRenderer
 
@@ -90,7 +90,7 @@ const SUGGESTIONS_RESPONSE_SCHEMA = {
                 value: { type: 'string' },
                 operator: { type: 'string' },
               },
-              required: ['field', 'value'],
+              required: ['value'],
             },
           },
         },
@@ -153,7 +153,7 @@ export class QueryShaper extends HTMLElement {
   get format(): Format {
     if (this.#hasFormatOverride) return this.#formatOverride as Format
     const attr = this.getAttribute('format')
-    if (attr === 'lucene' || attr === 'url-params') return attr
+    if (attr === 'lucene' || attr === 'url-params' || attr === 'simple-query-string') return attr
     return 'lucene'
   }
 
@@ -381,11 +381,15 @@ export class QueryShaper extends HTMLElement {
     const format = this.format
     if (typeof format === 'function') return format(fields)
     if (format === 'url-params') {
-      return new URLSearchParams(fields.map((f) => [f.field, f.value] as [string, string])).toString()
+      return new URLSearchParams(fields.map((f) => [f.field ?? 'q', f.value] as [string, string])).toString()
     }
-    return fields
-      .map((f, i) => (i === 0 || !f.operator ? `${f.field}:${f.value}` : `${f.operator} ${f.field}:${f.value}`))
-      .join(' ')
+    const token = (f: FieldValue) => (f.field ? `${f.field}:${f.value}` : f.value)
+    if (format === 'simple-query-string') {
+      return fields
+        .map((f) => `${f.operator === '+' || f.operator === '-' ? f.operator : ''}${token(f)}`)
+        .join(' ')
+    }
+    return fields.map((f, i) => (i === 0 || !f.operator ? token(f) : `${f.operator} ${token(f)}`)).join(' ')
   }
 
   accept(suggestion: Suggestion): void {

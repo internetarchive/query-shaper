@@ -34,8 +34,18 @@ Expansion suggestions are generated; no Expression.
 render an Expression's field/value pairs into the backend's real query
 output:
 
-- `lucene` — `field:value` tokens, space-separated, boolean operators/grouping
-- `url-params` — field/value pairs rendered as URL query parameters
+- `lucene` — `field:value` tokens, space-separated, boolean operators/grouping;
+  a field/value pair with no `field` renders as a bare, unscoped term (Lucene
+  itself allows mixing bare terms with fielded clauses in one query, e.g.
+  `climate change title:"policy"`).
+- `simple-query-string` — the classic `+required -excluded "exact phrase"`
+  prefix-operator style: `+` marks a term required, `-` marks one excluded,
+  no prefix means optional/should-match, and quoted values are preserved as
+  exact phrases. Matches Elasticsearch's `simple_query_string` query and
+  MySQL's boolean full-text mode, and is what most people mean by
+  "traditional web search syntax." Bare terms are the primary case here;
+  field-scoped terms (`+title:foo`) are supported but secondary.
+- `url-params` — field/value pairs rendered as URL query parameters.
 - Imperative-only escape hatch: a `.format` property accepting a custom render
   function, for shapes neither preset covers.
 
@@ -92,9 +102,14 @@ type Suggestion =
   | {
       kind: "expression";
       text: string; // rendered, per the configured Format
-      fields: Array<{ field: string; value: string; operator?: string }>;
+      fields: Array<{ field?: string; value: string; operator?: string }>;
     };
 ```
+
+An entry with no `field` is a bare, unscoped term rather than a field
+filter — the primary case for `simple-query-string`, a secondary one for
+`lucene`. `operator`'s meaning is Format-specific: `AND`/`OR` for `lucene`,
+`+`/`-` for `simple-query-string`.
 
 Every Suggestion the model returns already has typo corrections folded into
 its basis text (an Expression never faithfully encodes a typo the model

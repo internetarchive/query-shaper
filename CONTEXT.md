@@ -31,8 +31,9 @@ _Avoid_: Query expansion, synonym suggestion
 
 **Expression**:
 A Suggestion that reformulates the Search Text as a fielded and/or boolean query
-(e.g. `title:"climate change" AND year:2020..2023`). Field filters and boolean
-operators are both part of this single concept, not separate suggestion kinds.
+(e.g. `title:"climate change" AND year:2020..2023`), which may mix field
+filters with bare, unscoped terms. Field filters, bare terms, and boolean
+operators are all part of this single concept, not separate suggestion kinds.
 _Avoid_: Structured query, fielded query, boolean query, advanced query
 
 **Accept**:
