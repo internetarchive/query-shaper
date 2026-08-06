@@ -69,6 +69,16 @@ const SHADOW_STYLES = `
     color: var(--query-shaper-color, #111);
     padding: var(--query-shaper-option-padding, 0.5em 0.75em);
   }
+  [part="output"]:empty {
+    display: none;
+  }
+  [part="output"] {
+    display: block;
+    background: var(--query-shaper-background, #fff);
+    color: var(--query-shaper-color, #111);
+    padding: var(--query-shaper-option-padding, 0.5em 0.75em);
+    white-space: pre-wrap;
+  }
 `
 
 const SUGGESTIONS_RESPONSE_SCHEMA = {
@@ -112,6 +122,7 @@ export class QueryShaper extends HTMLElement {
 
   #listboxContainer: HTMLDivElement
   #downloadPromptContainer: HTMLDivElement
+  #defaultOutput: HTMLOutputElement
 
   constructor() {
     super()
@@ -126,6 +137,9 @@ export class QueryShaper extends HTMLElement {
     popup.appendChild(this.#listboxContainer)
     this.#downloadPromptContainer = document.createElement('div')
     popup.appendChild(this.#downloadPromptContainer)
+    this.#defaultOutput = document.createElement('output')
+    this.#defaultOutput.setAttribute('part', 'output')
+    popup.appendChild(this.#defaultOutput)
   }
 
   #fieldsOverride: Fields | undefined
@@ -162,11 +176,11 @@ export class QueryShaper extends HTMLElement {
     this.#hasFormatOverride = true
   }
 
-  get target(): HTMLInputElement | null {
+  get target(): HTMLInputElement | HTMLTextAreaElement | null {
     const forId = this.getAttribute('for')
     if (!forId) return null
     const el = document.getElementById(forId)
-    return el instanceof HTMLInputElement ? el : null
+    return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement ? el : null
   }
 
   #session: LanguageModelSession | undefined
@@ -405,10 +419,14 @@ export class QueryShaper extends HTMLElement {
         url = template.replace('{searchTerms}', encodeURIComponent(suggestion.text))
         window.location.href = url
       }
+    } else if (action === 'none') {
+      // no-op: the host handles everything via the query-shaper-accept event below
     } else {
       if (this.target) this.target.value = suggestion.text
       if (action === 'submit') {
         this.target?.form?.requestSubmit()
+      } else if (action === 'output') {
+        this.#writeToDestination(suggestion.text)
       }
     }
     this.dispatchEvent(new CustomEvent('query-shaper-accept', { detail: { suggestion, action, url } }))
@@ -416,6 +434,18 @@ export class QueryShaper extends HTMLElement {
     // double-count — but only if there's actually a form to fire that submit event.
     if (action !== 'submit' || !this.target?.form) {
       this.#recordHistory(suggestion.text)
+    }
+  }
+
+  #writeToDestination(text: string): void {
+    const selector = this.getAttribute('destination')
+    const elements: Iterable<Element> = selector ? document.querySelectorAll(selector) : [this.#defaultOutput]
+    for (const el of elements) {
+      if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
+        el.value = text
+      } else {
+        el.textContent = text
+      }
     }
   }
 

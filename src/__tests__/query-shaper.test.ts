@@ -30,4 +30,17 @@ describe('QueryShaper', () => {
 
     expect(input.getAttribute('autocomplete')).toBe('off')
   })
+
+  it('resolves a <textarea> as the Target too', () => {
+    const textarea = document.createElement('textarea')
+    textarea.id = 'search3'
+    document.body.appendChild(textarea)
+
+    const shaper = new QueryShaper()
+    shaper.setAttribute('for', 'search3')
+    document.body.appendChild(shaper)
+
+    expect(shaper.target).toBeInstanceOf(HTMLTextAreaElement)
+    expect(shaper.target?.id).toBe('search3')
+  })
 })
