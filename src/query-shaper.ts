@@ -267,7 +267,7 @@ export class QueryShaper extends HTMLElement {
 
   connectedCallback(): void {
     this.target?.setAttribute('autocomplete', 'off')
-    this.target?.addEventListener('focus', this.#onFocus, { once: true })
+    this.target?.addEventListener('focus', this.#onFocus)
     this.target?.addEventListener('input', this.#onInput)
     this.target?.addEventListener('keydown', this.#onKeydownListener)
     this.target?.addEventListener('blur', this.#onBlur)
@@ -664,8 +664,19 @@ export class QueryShaper extends HTMLElement {
     localStorage.setItem(key, JSON.stringify(entries.slice(-max)))
   }
 
-  async #ensureSession(): Promise<void> {
-    if (this.#session) return
+  #sessionPromise: Promise<void> | undefined
+
+  #ensureSession(): Promise<void> {
+    if (this.#session) return Promise.resolve()
+    if (!this.#sessionPromise) {
+      this.#sessionPromise = this.#ensureSessionInner().finally(() => {
+        this.#sessionPromise = undefined
+      })
+    }
+    return this.#sessionPromise
+  }
+
+  async #ensureSessionInner(): Promise<void> {
     const LM = (globalThis as { LanguageModel?: LanguageModelAPI }).LanguageModel
     if (!LM) {
       this.#emitStatus('unavailable')

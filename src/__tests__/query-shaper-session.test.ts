@@ -77,18 +77,34 @@ describe('QueryShaper session lifecycle', () => {
     expect(lm.baseSession.destroy).not.toHaveBeenCalled()
   })
 
-  it('only checks availability once per instance across repeated focuses', async () => {
+  it('does not recheck availability on repeated focuses once a session is established', async () => {
     const lm = mockLanguageModel({ availability: 'available' })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const { input } = mount()
 
     input.dispatchEvent(new Event('focus'))
     await vi.waitFor(() => expect(lm.availability).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
 
     input.dispatchEvent(new Event('focus'))
     input.dispatchEvent(new Event('focus'))
 
     expect(lm.availability).toHaveBeenCalledTimes(1)
+  })
+
+  it('rechecks availability on the next focus if no session was ever established', async () => {
+    const lm = mockLanguageModel({ availability: 'downloadable' })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(shaper.shadowRoot?.querySelector('[part="download-prompt"]')).not.toBeNull())
+    // Let the in-flight ensureSession() promise's own .finally() cleanup settle
+    // before refocusing, otherwise the retry-guard would still see it as pending.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.availability).toHaveBeenCalledTimes(2))
   })
 
   it('declares expectedInputs/expectedOutputs, defaulting to en when no document language is set', async () => {
