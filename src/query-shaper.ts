@@ -321,6 +321,10 @@ export class QueryShaper extends HTMLElement {
   async #generateInner(): Promise<void> {
     if (!this.#session) return
     const searchText = this.target?.value ?? ''
+    if (searchText.trim().length === 0) {
+      this.dispatchEvent(new CustomEvent('query-shaper-suggestions', { detail: { suggestions: [] } }))
+      return
+    }
     let history = this.#readHistory()
     let raw: string
     for (;;) {

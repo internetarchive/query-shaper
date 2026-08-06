@@ -47,6 +47,51 @@ describe('QueryShaper generation', () => {
     ])
   })
 
+  it('skips the model call and clears suggestions when the Target is cleared', async () => {
+    const lm = mockLanguageModel({
+      promptResponse: { suggestions: [{ kind: 'correction', text: 'climate change' }] },
+    })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const suggestionEvents: unknown[] = []
+    shaper.addEventListener('query-shaper-suggestions', (e) => {
+      suggestionEvents.push((e as CustomEvent).detail.suggestions)
+    })
+
+    input.value = 'climate'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
+    expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1)
+
+    input.value = ''
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(2))
+
+    expect(suggestionEvents[1]).toEqual([])
+    expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1)
+  })
+
+  it('never calls the model for whitespace-only input', async () => {
+    const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    input.value = '   '
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+
+    expect(lm.clonedSession.prompt).not.toHaveBeenCalled()
+  })
+
   it('debounces rapid keystrokes into a single generation call', async () => {
     const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
