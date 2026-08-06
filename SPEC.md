@@ -21,18 +21,30 @@ architecture.
 
 ## Element API
 
-**`for`** (attribute, required): id of the Target.
+**`for`** (attribute, required): id of the Target — an `<input>` or
+`<textarea>`.
 
 **`fields`** (attribute or `.fields` property): Fields declaration. The
 attribute value is JSON-parsed first; if that fails, treated as a free-form
 description string (e.g. `"title, author, language:iso-639-1, date (allowed
-patterns YYYY[-MM[-DD]]), categories (comma-separated list)"`). The `.fields`
-property always wins when both are set. Absent entirely → only Correction and
-Expansion suggestions are generated; no Expression.
+patterns YYYY[-MM[-DD]]), categories (comma-separated list)"`). The parsed
+JSON form is either an array of field descriptors (single Resource, the
+common case) or, for backends with more than one Resource, an object keyed
+by Resource name, each value its own array of field descriptors (e.g.
+`{"books": [{"name":"title"}, {"name":"year"}], "categories": [{"name":"id"}, {"name":"name"}]}`).
+There's no `"default"`/`"_"` wrapper for the single-Resource case — the bare
+array stays the default, un-nested form. The `.fields` property always wins
+when both are set. Absent entirely → only Correction and Expansion
+suggestions are generated; no Expression.
 
-**`format`** (attribute): a built-in preset name telling query-shaper how to
-render an Expression's field/value pairs into the backend's real query
-output:
+**`resource`** (attribute, optional): the table, file, or table-valued
+expression (e.g. `read_csv('data.csv')`) that a bare-array/free-text Fields
+declaration's columns belong to — only meaningful for `format="sql"`.
+Ignored when `fields` is the keyed-by-Resource object form, since the keys
+themselves supply this per Resource.
+
+**`format`** (attribute): a built-in preset name telling query-shaper how an
+Expression's rendered text is arrived at:
 
 - `lucene` — `field:value` tokens, space-separated, boolean operators/grouping;
   a field/value pair with no `field` renders as a bare, unscoped term (Lucene
@@ -46,13 +58,45 @@ output:
   "traditional web search syntax." Bare terms are the primary case here;
   field-scoped terms (`+title:foo`) are supported but secondary.
 - `url-params` — field/value pairs rendered as URL query parameters.
+- `sql` — no field/value decomposition at all; the model authors the
+  complete, runnable SQL statement directly (DuckDB dialect), including its
+  own `FROM`/`JOIN` clauses, and query-shaper uses that text verbatim. Field
+  filters, joins, projections, `ORDER BY`/`LIMIT`, and nested queries don't
+  fit a flat field/value/operator shape, so unlike the other three presets,
+  there's no rendering step to bypass — see "SQL prompt building" below for
+  how Fields/Resource feed the prompt instead.
 - Imperative-only escape hatch: a `.format` property accepting a custom render
-  function, for shapes neither preset covers.
+  function, for shapes neither preset covers. Since it's a function over
+  `FieldValue[]`, it can only ever operate on decomposed tuples — there's no
+  way for a custom function to receive raw model-authored text the way `sql`
+  does; a host wanting SQL-like freedom must use the `sql` preset itself.
 
-**`action`** (attribute): one of `fill` (default), `submit`, `opensearch`.
+**`action`** (attribute): one of `fill` (default), `submit`, `opensearch`,
+`output`, `none`.
+
+- `submit` fills the Target, then submits its form (unchanged).
+- `output` fills the Target, then also writes the Suggestion's text to the
+  **`destination`** attribute's matched element(s) — see below.
+- `none` does neither fill nor navigate nor write anywhere; `query-shaper-accept`
+  still fires and History still records, but the host handles everything
+  else itself. Orthogonal to `headless` — `headless` controls whether
+  query-shaper renders its own popup at all; `none` controls what `accept()`
+  does once called, regardless of who called it (query-shaper's own popup,
+  or a host's UI in headless mode). Combining `headless` × `{fill|none}`
+  covers all four points on that matrix, including the previously-impossible
+  "native popup, fully custom accept-handling."
+
 `opensearch` requires a **`template`** attribute/property holding a
 `{searchTerms}`-style URL template (placeholder may appear in a path segment,
 not just a query string — see the Wayback example below).
+
+**`destination`** (attribute, only meaningful for `action="output"`): a CSS
+selector (`document.querySelectorAll`, not `id` — unlike the Target, a
+Destination can legitimately be more than one element) identifying where to
+write the accepted Suggestion's text. Sets `.value` for `<textarea>`/`<input>`
+matches, `.textContent` otherwise. Absent → defaults to an `<output>` element
+query-shaper renders in its own Shadow DOM, in the same popup container the
+downloadable-status message uses.
 
 **`max-suggestions`** (attribute): global cap on total suggestions shown
 across all kinds combined. Sensible built-in per-kind defaults apply
@@ -101,8 +145,8 @@ type Suggestion =
   | { kind: "expansion"; text: string }
   | {
       kind: "expression";
-      text: string; // rendered, per the configured Format
-      fields: Array<{ field?: string; value: string; operator?: string }>;
+      text: string; // rendered per Format, or model-authored verbatim for sql
+      fields?: Array<{ field?: string; value: string; operator?: string }>;
     };
 ```
 
@@ -111,9 +155,52 @@ filter — the primary case for `simple-query-string`, a secondary one for
 `lucene`. `operator`'s meaning is Format-specific: `AND`/`OR` for `lucene`,
 `+`/`-` for `simple-query-string`.
 
+`fields` is omitted entirely (not an empty array — an empty array would
+falsely imply a query with zero conditions) for `format="sql"` Expressions,
+since there's no decomposition step for them to report. This is also why
+`fields` is optional on the type at all: every other Suggestion kind, and
+every other Format, always populates it.
+
 Every Suggestion the model returns already has typo corrections folded into
 its basis text (an Expression never faithfully encodes a typo the model
 also flagged as a Correction) — see the unified-generation note below.
+
+### SQL prompt building
+
+When `format="sql"`, the "Available fields" prompt section is replaced with
+a schema-like listing instead of a bare field list, and each Resource is
+described as a table or a file:
+
+- A Resource name is classified as a **file** if it contains `(` `)` (a
+  function-call shape, e.g. `read_csv(...)`), is a quoted string literal, or
+  contains a recognizable file extension, URL scheme, or `/` path separator.
+  Everything else defaults to **table** — the common case, and safer than
+  guessing "file" from an unrecognized shape.
+- The prompt groups Resources by that classification and explicitly tells
+  the model to write SQL for DuckDB, which can query local or remote files
+  directly:
+
+  ```
+  Available tables:
+  - books(title, year, author, category_id)
+
+  Available files (DuckDB can query these directly — local or remote):
+  - read_csv('data.csv')(title, year)
+
+  Write SQL for DuckDB.
+  ```
+
+- Multi-table joins are the model's call to make, not query-shaper's — if it
+  determines a question needs `books` and `categories` together, it writes
+  the `JOIN` itself. query-shaper has no notion of foreign-key relationships
+  and doesn't attempt to construct or validate joins; the model's returned
+  `text` is used verbatim regardless of how many Resources it drew on, since
+  that's already embedded in the SQL text's own `FROM`/`JOIN` clauses.
+- A bare-array/free-text Fields declaration (single Resource) uses the
+  `resource` attribute for the same table/file classification, phrased the
+  same way. If `resource` is also absent, no schema listing is added — the
+  free-form Fields text (if any) is passed through as-is, same as every
+  other Format, and the model is left to infer table/file naming itself.
 
 ## Generation flow
 
@@ -137,12 +224,17 @@ also flagged as a Correction) — see the unified-generation note below.
    up to `max-suggestions` total — unless `headless`, in which case only
    `query-shaper-suggestions` fires.
 4. **Accept**: apply `action` (fill the Target / submit its form / navigate
-   via the `opensearch` template); emit `query-shaper-accept`; record a
-   History entry.
+   via the `opensearch` template / fill the Target and also write to
+   `destination` / do nothing beyond the event below); emit
+   `query-shaper-accept`; record a History entry (`action="none"` still
+   records — the Suggestion was genuinely Accepted, regardless of what, if
+   anything, happens to any Target/Destination as a result).
 5. **History finalization triggers** (deduped so one user action never logs
    twice): a native form submit fires: record current Search Text. A
-   Suggestion is Accepted with `action="fill"` (no submit follows): record
-   it. An `opensearch` Action is invoked (navigation): record it.
+   Suggestion is Accepted with an Action that doesn't itself trigger a submit
+   (`fill`, `output`, `none`): record it directly. An `opensearch` Action is
+   invoked (navigation): record it. `submit` with no `<form>` on the Target
+   falls back to recording directly, since no submit event will ever fire.
 6. **Context overflow**: if the combined prompt risks exceeding the model's
    context window, proactively trim the _oldest_ History entries first
    (before touching Fields/Format/Search Text) and retry, rather than
