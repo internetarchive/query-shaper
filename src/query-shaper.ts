@@ -8,7 +8,7 @@ export type FieldDescriptor = {
 export type Fields = string | FieldDescriptor[] | Record<string, FieldDescriptor[]>
 
 export type FieldValue = { field?: string; value: string; operator?: string }
-export type FormatPreset = 'lucene' | 'url-params' | 'simple-query-string' | 'sql'
+export type FormatPreset = 'lucene' | 'url-params' | 'simple-query-string' | 'sql' | 'rest-api'
 export type FormatRenderer = (fields: FieldValue[]) => string
 export type Format = FormatPreset | FormatRenderer
 
@@ -28,12 +28,12 @@ export type LanguageModelAPI = {
 export type RawSuggestion =
   | { kind: 'correction'; text: string }
   | { kind: 'expansion'; text: string }
-  | { kind: 'expression'; fields?: FieldValue[]; text?: string }
+  | { kind: 'expression'; fields?: FieldValue[]; text?: string; resource?: string }
 
 export type Suggestion =
   | { kind: 'correction'; text: string }
   | { kind: 'expansion'; text: string }
-  | { kind: 'expression'; text: string; fields?: FieldValue[] }
+  | { kind: 'expression'; text: string; fields?: FieldValue[]; resource?: string }
 
 const DEBOUNCE_MS = 400
 const DOWNLOAD_PROMPT_DISMISSED_KEY = 'query-shaper:download-prompt-dismissed'
@@ -121,6 +121,7 @@ function buildSuggestionsResponseSchema(isSql: boolean) {
           properties: {
             kind: { type: 'string', enum: ['correction', 'expansion', 'expression'] },
             text: { type: 'string' },
+            resource: { type: 'string' },
             fields: {
               type: 'array',
               items: {
@@ -198,13 +199,41 @@ export class QueryShaper extends HTMLElement {
   get format(): Format {
     if (this.#hasFormatOverride) return this.#formatOverride as Format
     const attr = this.getAttribute('format')
-    if (attr === 'lucene' || attr === 'url-params' || attr === 'simple-query-string' || attr === 'sql') return attr
+    if (
+      attr === 'lucene' ||
+      attr === 'url-params' ||
+      attr === 'simple-query-string' ||
+      attr === 'sql' ||
+      attr === 'rest-api'
+    )
+      return attr
     return 'lucene'
   }
 
   set format(value: Format) {
     this.#formatOverride = value
     this.#hasFormatOverride = true
+  }
+
+  #baseOverride: string | undefined
+  #hasBaseOverride = false
+
+  get base(): string {
+    const raw = this.#hasBaseOverride ? this.#baseOverride : this.getAttribute('base')
+    if (raw !== null && raw !== undefined) return new URL(raw, document.baseURI).toString()
+    const url = new URL(document.baseURI)
+    url.search = ''
+    url.hash = ''
+    return url.toString()
+  }
+
+  set base(value: string) {
+    this.#baseOverride = value
+    this.#hasBaseOverride = true
+  }
+
+  #hasBase(): boolean {
+    return this.#hasBaseOverride || this.getAttribute('base') !== null
   }
 
   get target(): HTMLInputElement | HTMLTextAreaElement | null {
@@ -400,6 +429,7 @@ export class QueryShaper extends HTMLElement {
       })
       .slice(0, maxSuggestions)
       .map((s) => this.#toSuggestion(s))
+      .filter((s): s is Suggestion => s !== null)
     this.dispatchEvent(new CustomEvent('query-shaper-suggestions', { detail: { suggestions } }))
   }
 
@@ -420,9 +450,36 @@ export class QueryShaper extends HTMLElement {
     const fields = this.fields
     if (fields === undefined) return null
     if (this.format === 'sql') return this.#buildSqlFieldsSection(fields)
+    if (this.format === 'rest-api') return this.#buildRestFieldsSection(fields)
     const fieldsDescription = typeof fields === 'string' ? fields : JSON.stringify(fields)
     const format = this.format
     return `Available fields: ${fieldsDescription}\nFormat: ${typeof format === 'function' ? 'custom' : format}`
+  }
+
+  #buildRestFieldsSection(fields: Fields): string {
+    const lines: string[] = []
+    const placeholderNote =
+      'An endpoint may contain {name} placeholders; return a field/value pair whose field matches each {name} you need to fill.'
+    if (typeof fields === 'string') {
+      lines.push(`Available endpoints: ${fields}`)
+      lines.push('Return the endpoint you chose as "resource".')
+    } else if (Array.isArray(fields)) {
+      const resource = this.getAttribute('resource')
+      if (resource) {
+        const columns = fields.map((f) => f.name).join(', ')
+        lines.push(`Available endpoint: ${resource}(${columns})`)
+      } else {
+        lines.push(`Available fields: ${JSON.stringify(fields)}`)
+      }
+    } else {
+      const entries = Object.entries(fields).map(
+        ([resource, descriptors]) => `- ${resource}(${descriptors.map((d) => d.name).join(', ')})`,
+      )
+      lines.push('Available endpoints:', ...entries)
+      lines.push('Return the endpoint you chose as "resource".')
+    }
+    lines.push(placeholderNote)
+    return lines.join('\n')
   }
 
   #buildSqlFieldsSection(fields: Fields): string {
@@ -443,22 +500,74 @@ export class QueryShaper extends HTMLElement {
     return lines.join('\n')
   }
 
-  #toSuggestion(raw: RawSuggestion): Suggestion {
+  #toSuggestion(raw: RawSuggestion): Suggestion | null {
     if (raw.kind === 'expression') {
       if (this.format === 'sql') {
         return { kind: 'expression', text: raw.text ?? '' }
       }
       const fields = raw.fields ?? []
+      if (this.format === 'rest-api') return this.#toRestSuggestion(raw, fields)
       return { kind: 'expression', fields, text: this.#renderFormat(fields) }
     }
     return raw
+  }
+
+  #toRestSuggestion(raw: RawSuggestion & { kind: 'expression' }, fields: FieldValue[]): Suggestion | null {
+    const resourceAttr = this.getAttribute('resource')
+    const resource = resourceAttr ?? raw.resource
+    const rendered = this.#renderRestUrl(resource, fields)
+    if (rendered === null) {
+      this.dispatchEvent(
+        new CustomEvent('query-shaper-error', {
+          detail: {
+            error: new Error(`Unresolved path parameter in resource "${resource}"`),
+            phase: 'rest-path-substitution',
+          },
+        }),
+      )
+      return null
+    }
+    const modelResource = !resourceAttr && raw.resource ? raw.resource : undefined
+    return modelResource
+      ? { kind: 'expression', text: rendered.text, fields: rendered.fields, resource: modelResource }
+      : { kind: 'expression', text: rendered.text, fields: rendered.fields }
+  }
+
+  #renderRestUrl(resource: string | undefined, fields: FieldValue[]): { text: string; fields: FieldValue[] } | null {
+    const consumed = new Set<number>()
+    let unresolved = false
+    const path = (resource ?? '').replace(/\{([^}]+)\}/g, (match, name: string) => {
+      const idx = fields.findIndex((f, i) => f.field === name && !consumed.has(i))
+      const matched = fields[idx]
+      if (idx === -1 || !matched) {
+        unresolved = true
+        return match
+      }
+      consumed.add(idx)
+      return encodeURIComponent(matched.value)
+    })
+    if (unresolved) return null
+    const remaining = fields.filter((_, i) => !consumed.has(i))
+    const query =
+      remaining.length > 0
+        ? new URLSearchParams(remaining.map((f) => [f.field ?? 'q', f.value] as [string, string])).toString()
+        : ''
+    const joined = path ? this.#joinUrl(this.base, path) : this.base
+    return { text: query ? `${joined}?${query}` : joined, fields: remaining }
+  }
+
+  #joinUrl(base: string, path: string): string {
+    const trimmedBase = base.endsWith('/') ? base.slice(0, -1) : base
+    const trimmedPath = path.startsWith('/') ? path.slice(1) : path
+    return `${trimmedBase}/${trimmedPath}`
   }
 
   #renderFormat(fields: FieldValue[]): string {
     const format = this.format
     if (typeof format === 'function') return format(fields)
     if (format === 'url-params') {
-      return new URLSearchParams(fields.map((f) => [f.field ?? 'q', f.value] as [string, string])).toString()
+      const query = new URLSearchParams(fields.map((f) => [f.field ?? 'q', f.value] as [string, string])).toString()
+      return this.#hasBase() ? `${this.base}?${query}` : query
     }
     const token = (f: FieldValue) => (f.field ? `${f.field}:${f.value}` : f.value)
     if (format === 'simple-query-string') {

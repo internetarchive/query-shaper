@@ -38,6 +38,14 @@ describe('QueryShaper Format', () => {
     expect(shaper.format).toBe('sql')
   })
 
+  it('resolves the rest-api preset from the format attribute', () => {
+    const shaper = new QueryShaper()
+    shaper.setAttribute('format', 'rest-api')
+    document.body.appendChild(shaper)
+
+    expect(shaper.format).toBe('rest-api')
+  })
+
   it('defaults to lucene when the format attribute is absent', () => {
     const shaper = new QueryShaper()
     document.body.appendChild(shaper)
