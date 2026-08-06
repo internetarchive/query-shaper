@@ -69,16 +69,26 @@ _Avoid_: Schema, field schema, index schema
 The preset (or custom render function) that tells `<query-shaper>` how an
 Expression's rendered text is arrived at for a specific backend — either by
 rendering field/value pairs itself (a Lucene-style string, URL parameters for
-facet-driven backends, or a custom render function), or by having the model
-author the text directly, as with SQL, where field/value pairs can't capture
-joins, projections, or ordering.
+facet-driven backends, REST query parameters against a chosen Resource
+endpoint, or a custom render function), or by having the model author the
+text directly, as with SQL, where field/value pairs can't capture joins,
+projections, or ordering.
 _Avoid_: Syntax, query dialect, query syntax, render mode
 
 **Resource**:
-The table, file, or table-valued expression (e.g. `read_csv('data.csv')`) a
-Fields entry's columns belong to. Named — not "Table" — because it covers
-files and function calls equally, not just literal database tables.
-_Avoid_: Table, source, from
+The table, file, table-valued expression (e.g. `read_csv('data.csv')`), or
+REST API endpoint path a Fields entry's columns or query parameters belong
+to. Named — not "Table" or "Endpoint" — because it covers files, function
+calls, and API routes equally, not just literal database tables.
+_Avoid_: Table, source, from, endpoint
+
+**Base**:
+The root URL a `rest-api` Format composes a chosen Resource's path and query
+parameters onto (and that a `url-params` Format optionally composes a full
+URL onto, instead of rendering a bare query string). Accepts a relative
+path, absolute path, or absolute URL; defaults to the current document's URL
+with its query string and fragment stripped.
+_Avoid_: Root, origin, endpoint base
 
 **History**:
 A bounded, recycling record of prior finalized queries — Search Text that was

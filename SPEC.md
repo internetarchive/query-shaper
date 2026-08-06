@@ -18,6 +18,8 @@ architecture.
   structured so promoting one to an attribute is additive, not a rewrite)
 - Reading `<datalist>` options as passive vocabulary input (plausible future
   idea, not committed)
+- Non-`GET` HTTP semantics for `format="rest-api"` — no request bodies, no
+  other HTTP methods; it composes URLs for read/search endpoints only
 
 ## Element API
 
@@ -37,11 +39,25 @@ array stays the default, un-nested form. The `.fields` property always wins
 when both are set. Absent entirely → only Correction and Expansion
 suggestions are generated; no Expression.
 
-**`resource`** (attribute, optional): the table, file, or table-valued
-expression (e.g. `read_csv('data.csv')`) that a bare-array/free-text Fields
-declaration's columns belong to — only meaningful for `format="sql"`.
-Ignored when `fields` is the keyed-by-Resource object form, since the keys
-themselves supply this per Resource.
+**`resource`** (attribute, optional): the table, file, table-valued
+expression (e.g. `read_csv('data.csv')`), or REST API endpoint path that a
+bare-array/free-text Fields declaration's columns/parameters belong to —
+meaningful for `format="sql"` and `format="rest-api"`. Ignored when `fields`
+is the keyed-by-Resource object form, since the keys themselves supply this
+per Resource. For `rest-api`, the value may contain `{name}`-style
+path-parameter placeholders (e.g. `resource="questions/{slug}"`) — see
+"REST-API prompt building" below.
+
+**`base`** (attribute, optional): the root URL that `format="rest-api"`
+composes a chosen Resource's path and query parameters onto, and that
+`format="url-params"` optionally composes a full URL onto instead of
+rendering a bare query string (see the `url-params` and `rest-api` entries
+below). Accepts a relative path, an absolute path, or an absolute URL —
+resolved via `new URL(base, document.baseURI)`, so it behaves exactly like
+any other relative URL resolution in the browser, no special-casing needed
+for the three forms. Defaults, when absent, to the current document's URL
+with the query string and fragment stripped (`new URL(document.baseURI)`
+with `.search`/`.hash` cleared).
 
 **`format`** (attribute): a built-in preset name telling query-shaper how an
 Expression's rendered text is arrived at:
@@ -57,7 +73,20 @@ Expression's rendered text is arrived at:
   MySQL's boolean full-text mode, and is what most people mean by
   "traditional web search syntax." Bare terms are the primary case here;
   field-scoped terms (`+title:foo`) are supported but secondary.
-- `url-params` — field/value pairs rendered as URL query parameters.
+- `url-params` — field/value pairs rendered as URL query parameters. When a
+  **`base`** attribute is set, the rendered text is the full URL (`base` +
+  `?` + the query string) rather than a bare query string; when `base` is
+  absent, behavior is unchanged from today (bare query string).
+- `rest-api` — like `lucene`/`url-params`/`simple-query-string`, field/value
+  pairs are rendered by query-shaper, not authored by the model. What's
+  different: the model additionally selects which declared Resource (REST
+  endpoint) the Expression targets, and may fill `{name}`-style path
+  parameters embedded in that Resource's path from the same tuple set — see
+  "REST-API prompt building" below. The rendered `text` is always a fully
+  composed absolute URL: **`base`** + the selected Resource's path (with any
+  path parameters substituted) + `?` + the remaining tuples rendered as a
+  query string (the same rendering `url-params` uses). If the model returns
+  no Resource, `base` alone is the endpoint.
 - `sql` — no field/value decomposition at all; the model authors the
   complete, runnable SQL statement directly (DuckDB dialect), including its
   own `FROM`/`JOIN` clauses, and query-shaper uses that text verbatim. Field
@@ -134,8 +163,11 @@ suggestion, action }`
 - **`query-shaper-status`** — model/session lifecycle transition (see below).
   `detail: { status: 'unavailable'|'downloadable'|'downloading'|'available' }`
 - **`query-shaper-error`** — a generation call failed (prompt error, quota
-  exceeded, unrecoverable context overflow). `detail: { error, phase }`. The
-  Target itself never breaks — this is purely an observability seam.
+  exceeded, unrecoverable context overflow), or a `format="rest-api"`
+  Expression was dropped because a Resource path's `{name}` placeholder
+  couldn't be filled from the model's returned tuples (`phase:
+  "rest-path-substitution"`). `detail: { error, phase }`. The Target itself
+  never breaks — this is purely an observability seam.
 
 ### Suggestion shape
 
@@ -147,6 +179,7 @@ type Suggestion =
       kind: "expression";
       text: string; // rendered per Format, or model-authored verbatim for sql
       fields?: Array<{ field?: string; value: string; operator?: string }>;
+      resource?: string; // the Resource (REST endpoint) selected, rest-api only
     };
 ```
 
@@ -160,6 +193,14 @@ falsely imply a query with zero conditions) for `format="sql"` Expressions,
 since there's no decomposition step for them to report. This is also why
 `fields` is optional on the type at all: every other Suggestion kind, and
 every other Format, always populates it.
+
+`resource` is populated only for `format="rest-api"` Expressions where the
+model determined which declared endpoint applies — e.g. Fields declared as
+a Resource-keyed object (multiple candidate endpoints), or free-form text
+describing endpoints in prose. It's omitted when a `resource` attribute
+already pins a single fixed endpoint, since there's nothing left to
+disambiguate, and omitted for every non-`rest-api` Format, same as `fields`
+is for `sql`.
 
 Every Suggestion the model returns already has typo corrections folded into
 its basis text (an Expression never faithfully encodes a typo the model
@@ -201,6 +242,45 @@ described as a table or a file:
   same way. If `resource` is also absent, no schema listing is added — the
   free-form Fields text (if any) is passed through as-is, same as every
   other Format, and the model is left to infer table/file naming itself.
+
+### REST-API prompt building
+
+When `format="rest-api"`, Fields describes one or more REST endpoints
+(Resources), and the prompt always explains the path-parameter convention
+below regardless of which Fields shape is in play:
+
+- A **Resource-keyed Fields object** lists multiple endpoints by path (e.g.
+  `{"questions": [...], "questions/{slug}": [...], "responses": [...]}`),
+  each with its own field descriptors — the model must pick one per
+  Expression and return it as `resource` on the Suggestion.
+- A **bare array + `resource` attribute** declares a single, fixed endpoint;
+  the model is never asked to choose or return one, since there's only one.
+- **Free-form text** Fields describes available endpoints in prose; the
+  model must both infer and return a `resource` string, same as it infers
+  field names from prose under any other Format.
+
+**Path parameters**, in every shape above, use one convention: an endpoint
+path may contain `{name}` placeholders (e.g. `questions/{slug}`). The model
+fills these from the *same* field/value tuple set it already returns for
+query parameters — no separate `in: "query" | "path"` marker on field
+descriptors. Rendering:
+
+1. Take the Resource path — from the `resource` attribute, or the model's
+   returned `resource`, or `base` alone if neither is present.
+2. For each `{name}` token in that path, find a returned tuple whose `field`
+   matches `name`, percent-encode its `value` with `encodeURIComponent`
+   (same encoding the `opensearch` Action already uses for `{searchTerms}`
+   substitution — not `URLSearchParams`'s `+`-for-space rule), and splice it
+   in. Consumed tuples are removed from the set.
+3. Render whatever tuples remain as a query string (the same renderer
+   `url-params` uses) and append it to `base` + the substituted path.
+
+query-shaper does not validate a model-returned `resource` against the
+declared endpoint list — it's trusted verbatim, the same trust the `sql`
+preset already extends to raw model-authored text. If, after step 2, the
+path still contains an unresolved `{name}` token, the Expression Suggestion
+is dropped and `query-shaper-error` fires with `phase:
+"rest-path-substitution"` instead of emitting a structurally broken URL.
 
 ## Generation flow
 
