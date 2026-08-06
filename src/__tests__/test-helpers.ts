@@ -1,5 +1,5 @@
 import { vi } from 'vitest'
-import { QueryShaper } from './query-shaper.js'
+import { QueryShaper } from '../query-shaper.js'
 
 export function mount(id = 'search') {
   const input = document.createElement('input')

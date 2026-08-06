@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { QueryShaper } from './query-shaper.js'
+import { QueryShaper } from '../query-shaper.js'
 
 describe('QueryShaper Fields', () => {
   afterEach(() => {

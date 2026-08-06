@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { __resetSharedSessionForTests } from './query-shaper.js'
+import { __resetSharedSessionForTests } from '../query-shaper.js'
 import { mockLanguageModel, mount } from './test-helpers.js'
 
 describe('QueryShaper generation', () => {
