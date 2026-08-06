@@ -4,7 +4,7 @@ Synthesizes the design session recorded in `CONTEXT.md` (vocabulary) and
 `docs/adr/` (the two hardest-to-reverse calls) into something implementable.
 
 Everything under **Element API** and **Generation flow** reflects a decision
-actually made during grilling. Exact attribute/event *names* are a first
+actually made during grilling. Exact attribute/event _names_ are a first
 proposal, not separately grilled — treat them as easy to rename, not settled
 architecture.
 
@@ -33,6 +33,7 @@ Expansion suggestions are generated; no Structured Query.
 **`format`** (attribute): a built-in preset name telling query-shaper how to
 render a Structured Query's field/value pairs into the backend's real query
 output:
+
 - `lucene` — `field:value` tokens, space-separated, boolean operators/grouping
 - `url-params` — field/value pairs rendered as URL query parameters
 - Imperative-only escape hatch: a `.format` property accepting a custom render
@@ -56,7 +57,7 @@ already stored under this instance's key.
 **`history-key`** (attribute, optional): overrides the localStorage
 partition key for History. Defaults to the Target's `id` (always available,
 since `for` requires one) — set this only when multiple instances should
-deliberately *share* one History.
+deliberately _share_ one History.
 
 **`headless`** (boolean attribute): renders no popup UI; only emits the
 events below. Lets a host with its own existing suggestion widget consume
@@ -73,9 +74,9 @@ All fired on the `<query-shaper>` element itself, as `CustomEvent`s carrying
 data in `detail`:
 
 - **`query-shaper-suggestions`** — a new suggestion set is ready. `detail:
-  { suggestions: Suggestion[] }`
+{ suggestions: Suggestion[] }`
 - **`query-shaper-accept`** — a Suggestion was Accepted. `detail: {
-  suggestion, action }`
+suggestion, action }`
 - **`query-shaper-status`** — model/session lifecycle transition (see below).
   `detail: { status: 'unavailable'|'downloadable'|'downloading'|'available' }`
 - **`query-shaper-error`** — a generation call failed (prompt error, quota
@@ -86,13 +87,13 @@ data in `detail`:
 
 ```ts
 type Suggestion =
-  | { kind: 'correction'; text: string }
-  | { kind: 'expansion'; text: string }
+  | { kind: "correction"; text: string }
+  | { kind: "expansion"; text: string }
   | {
-      kind: 'structured-query';
-      text: string;               // rendered, per the configured Format
+      kind: "structured-query";
+      text: string; // rendered, per the configured Format
       fields: Array<{ field: string; value: string; operator?: string }>;
-    }
+    };
 ```
 
 Every Suggestion the model returns already has typo corrections folded into
@@ -128,7 +129,7 @@ also flagged as a Correction) — see the unified-generation note below.
    Suggestion is Accepted with `action="fill"` (no submit follows): record
    it. An `opensearch` Action is invoked (navigation): record it.
 6. **Context overflow**: if the combined prompt risks exceeding the model's
-   context window, proactively trim the *oldest* History entries first
+   context window, proactively trim the _oldest_ History entries first
    (before touching Fields/Format/Search Text) and retry, rather than
    surfacing an error for something the user configured a number for.
 7. **Any other failure**: emit `query-shaper-error`; that generation cycle

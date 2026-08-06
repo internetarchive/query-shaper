@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Query Shaper — Demo</title>
+  </head>
+  <body>
+    <h1>Query Shaper — Demo</h1>
+    <p>
+      Placeholder demo, proving the element loads and binds to its Target. The
+      full set of real-backend instances (Internet Archive, Open Library,
+      Wayback Machine, generic configs) is tracked in
+      <a href="https://git.archive.org/sawood/query-shaper/-/work_items/2"
+        >issue #2</a
+      >.
+    </p>
+    <form>
+      <input id="search" type="search" placeholder="Try a search…" />
+      <query-shaper for="search"></query-shaper>
+    </form>
+    <script type="module" src="../src/index.ts"></script>
+  </body>
+</html>

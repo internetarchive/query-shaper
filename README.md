@@ -30,9 +30,25 @@ built-in AI APIs, query interpretation:
 
 ## Status
 
-Early development. The custom element, its attributes/events, and the
-browser-AI integration are still being designed. This README describes the
-intended shape of the project; expect it to evolve.
+Early development. The design is settled — see `CONTEXT.md` for the
+vocabulary, `docs/adr/` for the two hardest-to-reverse architectural calls,
+and `SPEC.md` for the full element API and generation flow — but the
+component itself is just scaffolding right now; the actual behavior tracked
+in `SPEC.md` is still being implemented.
+
+## Development
+
+Requires Node.js and Chrome 138+ (for the built-in `LanguageModel` API used
+at runtime; not required just to build or test).
+
+```sh
+npm install
+npm run dev        # serves ./demo against the current source
+npm test           # run the unit test suite
+npm run typecheck
+npm run lint
+npm run build      # emits the npm package + CDN bundle to ./dist
+```
 
 ## License
 
