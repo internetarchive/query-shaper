@@ -44,3 +44,30 @@ The configurable behavior triggered when a Suggestion is Accepted: filling the
 Target with the Suggestion's text (default), submitting the Target's form, or
 invoking an OpenSearch URL template.
 _Avoid_: Accept mode, accept behavior, apply strategy
+
+**Fields**:
+The description of what fields exist in the Target's backend, enabling
+Structured Query suggestions. Declared as free-form text, inline JSON, or an
+imperative property; without Fields, only Correction and Expansion Suggestions
+are offered.
+_Avoid_: Schema, field schema, index schema
+
+**Format**:
+The preset (or custom render function) that tells `<query-shaper>` how to
+render a Structured Query's field/value pairs into a specific backend's actual
+query format — e.g. a Lucene-style string, or URL parameters for facet-driven
+backends.
+_Avoid_: Syntax, query dialect, query syntax, render mode
+
+**History**:
+A bounded, recycling record of prior finalized queries — Search Text that was
+submitted, and/or Suggestions that were Accepted — persisted in local storage
+and fed back to the model as extra context for future Suggestions. Capped by a
+configurable size; a cap of zero disables History entirely.
+_Avoid_: Query history, prior queries, search history
+
+**Headless**:
+A mode in which `<query-shaper>` renders no suggestion popup of its own and
+only emits Suggestion data via events, letting the host's own existing
+suggestion UI consume and display it directly.
+_Avoid_: Data-only mode, render mode
