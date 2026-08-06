@@ -15,6 +15,45 @@ describe('QueryShaper generation', () => {
     localStorage.clear()
   })
 
+  it('ignores a stale generation that resolves after a newer one already completed', async () => {
+    vi.useRealTimers()
+    const lm = mockLanguageModel({ availability: 'available' })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    let resolveFirst: (raw: string) => void = () => {}
+    const firstPrompt = new Promise<string>((resolve) => {
+      resolveFirst = resolve
+    })
+    lm.clonedSession.prompt
+      .mockImplementationOnce(() => firstPrompt)
+      .mockImplementationOnce(() =>
+        Promise.resolve(JSON.stringify({ suggestions: [{ kind: 'correction', text: 'second, newer result' }] })),
+      )
+
+    const suggestionEvents: unknown[] = []
+    shaper.addEventListener('query-shaper-suggestions', (e) => {
+      suggestionEvents.push((e as CustomEvent).detail.suggestions)
+    })
+
+    input.value = 'first, slower query'
+    input.dispatchEvent(new Event('input'))
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1), { timeout: 1000 })
+
+    input.value = 'second, faster query'
+    input.dispatchEvent(new Event('input'))
+    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1), { timeout: 1000 })
+    expect(suggestionEvents[0]).toEqual([{ kind: 'correction', text: 'second, newer result' }])
+
+    resolveFirst(JSON.stringify({ suggestions: [{ kind: 'correction', text: 'first, STALE result' }] }))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    expect(suggestionEvents).toHaveLength(1)
+  })
+
   it('generates suggestions from a debounced input and emits them', async () => {
     const lm = mockLanguageModel({
       promptResponse: {

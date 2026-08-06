@@ -402,18 +402,23 @@ export class QueryShaper extends HTMLElement {
     }, DEBOUNCE_MS)
   }
 
+  #generationId = 0
+
   async #generate(): Promise<void> {
+    const id = ++this.#generationId
     try {
-      await this.#generateInner()
+      await this.#generateInner(id)
     } catch (error) {
+      if (id !== this.#generationId) return
       this.dispatchEvent(new CustomEvent('query-shaper-error', { detail: { error, phase: 'generate' } }))
     }
   }
 
-  async #generateInner(): Promise<void> {
+  async #generateInner(id: number): Promise<void> {
     if (!this.#session) return
     const searchText = this.target?.value ?? ''
     if (searchText.trim().length === 0) {
+      if (id !== this.#generationId) return
       this.dispatchEvent(new CustomEvent('query-shaper-suggestions', { detail: { suggestions: [] } }))
       return
     }
@@ -448,6 +453,7 @@ export class QueryShaper extends HTMLElement {
       .slice(0, maxSuggestions)
       .map((s) => this.#toSuggestion(s))
       .filter((s): s is Suggestion => s !== null)
+    if (id !== this.#generationId) return
     this.dispatchEvent(new CustomEvent('query-shaper-suggestions', { detail: { suggestions } }))
   }
 

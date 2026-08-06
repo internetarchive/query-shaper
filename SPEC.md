@@ -316,6 +316,14 @@ is dropped and `query-shaper-error` fires with `phase:
    kind and pre-sorted by the model. No staged/sequential correction-first
    pass — one call, one response, avoiding both the latency and the
    response-merging complexity a staged pipeline would add.
+
+   Debouncing only cancels a *pending* timer, not an already-started model
+   call — real on-device latency means a call from an earlier pause can
+   still be in flight when a later one starts. Each call is tagged with a
+   monotonically increasing generation id at start; a result is rendered
+   only if its id still matches the latest one when it resolves, so a
+   slower, older call can never overwrite a fresher one's Suggestions,
+   regardless of resolution order.
 3. **Render**: grouped by kind (Correction / Expansion / Expression),
    up to `max-suggestions` total — unless `headless`, in which case only
    `query-shaper-suggestions` fires.
