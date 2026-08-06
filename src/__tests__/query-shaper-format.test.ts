@@ -30,6 +30,14 @@ describe('QueryShaper Format', () => {
     expect(shaper.format).toBe('simple-query-string')
   })
 
+  it('resolves the sql preset from the format attribute', () => {
+    const shaper = new QueryShaper()
+    shaper.setAttribute('format', 'sql')
+    document.body.appendChild(shaper)
+
+    expect(shaper.format).toBe('sql')
+  })
+
   it('defaults to lucene when the format attribute is absent', () => {
     const shaper = new QueryShaper()
     document.body.appendChild(shaper)

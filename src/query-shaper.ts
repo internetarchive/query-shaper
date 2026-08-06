@@ -5,10 +5,10 @@ export type FieldDescriptor = {
   description?: string
 }
 
-export type Fields = string | FieldDescriptor[]
+export type Fields = string | FieldDescriptor[] | Record<string, FieldDescriptor[]>
 
 export type FieldValue = { field?: string; value: string; operator?: string }
-export type FormatPreset = 'lucene' | 'url-params' | 'simple-query-string'
+export type FormatPreset = 'lucene' | 'url-params' | 'simple-query-string' | 'sql'
 export type FormatRenderer = (fields: FieldValue[]) => string
 export type Format = FormatPreset | FormatRenderer
 
@@ -28,12 +28,12 @@ export type LanguageModelAPI = {
 export type RawSuggestion =
   | { kind: 'correction'; text: string }
   | { kind: 'expansion'; text: string }
-  | { kind: 'expression'; fields: FieldValue[] }
+  | { kind: 'expression'; fields?: FieldValue[]; text?: string }
 
 export type Suggestion =
   | { kind: 'correction'; text: string }
   | { kind: 'expansion'; text: string }
-  | { kind: 'expression'; text: string; fields: FieldValue[] }
+  | { kind: 'expression'; text: string; fields?: FieldValue[] }
 
 const DEBOUNCE_MS = 400
 const DOWNLOAD_PROMPT_DISMISSED_KEY = 'query-shaper:download-prompt-dismissed'
@@ -48,6 +48,35 @@ const KIND_ORDER = KIND_CONFIG.map((k) => k.kind)
 const DEFAULT_KIND_CAPS: Record<string, number> = Object.fromEntries(
   KIND_CONFIG.map((k) => [k.kind, k.defaultCap]),
 )
+
+function isFileResource(name: string): boolean {
+  const trimmed = name.trim()
+  if (trimmed.includes('(') && trimmed.includes(')')) return true
+  if (/^['"]/.test(trimmed)) return true
+  if (/\.(csv|tsv|parquet|json|ndjson|xlsx)\b/i.test(trimmed)) return true
+  if (/^\w+:\/\//.test(trimmed)) return true
+  if (trimmed.includes('/')) return true
+  return false
+}
+
+function describeResources(resources: Record<string, FieldDescriptor[]>): string {
+  const tables: string[] = []
+  const files: string[] = []
+  for (const [name, descriptors] of Object.entries(resources)) {
+    const columns = descriptors.map((d) => d.name).join(', ')
+    const line = `- ${name}(${columns})`
+    if (isFileResource(name)) files.push(line)
+    else tables.push(line)
+  }
+  const lines: string[] = []
+  if (tables.length > 0) {
+    lines.push('Available tables:', ...tables)
+  }
+  if (files.length > 0) {
+    lines.push('Available files (DuckDB can query these directly — local or remote):', ...files)
+  }
+  return lines.join('\n')
+}
 
 const SHADOW_STYLES = `
   ul { list-style: none; margin: 0; padding: 0; }
@@ -81,34 +110,36 @@ const SHADOW_STYLES = `
   }
 `
 
-const SUGGESTIONS_RESPONSE_SCHEMA = {
-  type: 'object',
-  properties: {
-    suggestions: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          kind: { type: 'string', enum: ['correction', 'expansion', 'expression'] },
-          text: { type: 'string' },
-          fields: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                field: { type: 'string' },
-                value: { type: 'string' },
-                operator: { type: 'string' },
+function buildSuggestionsResponseSchema(isSql: boolean) {
+  return {
+    type: 'object',
+    properties: {
+      suggestions: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            kind: { type: 'string', enum: ['correction', 'expansion', 'expression'] },
+            text: { type: 'string' },
+            fields: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  field: { type: 'string' },
+                  value: { type: 'string' },
+                  operator: { type: 'string' },
+                },
+                required: ['value'],
               },
-              required: ['value'],
             },
           },
+          required: isSql ? ['kind', 'text'] : ['kind'],
         },
-        required: ['kind'],
       },
     },
-  },
-  required: ['suggestions'],
+    required: ['suggestions'],
+  }
 }
 
 let sharedBaseSession: Promise<LanguageModelSession> | null = null
@@ -167,7 +198,7 @@ export class QueryShaper extends HTMLElement {
   get format(): Format {
     if (this.#hasFormatOverride) return this.#formatOverride as Format
     const attr = this.getAttribute('format')
-    if (attr === 'lucene' || attr === 'url-params' || attr === 'simple-query-string') return attr
+    if (attr === 'lucene' || attr === 'url-params' || attr === 'simple-query-string' || attr === 'sql') return attr
     return 'lucene'
   }
 
@@ -344,7 +375,7 @@ export class QueryShaper extends HTMLElement {
     for (;;) {
       try {
         raw = await this.#session.prompt(this.#buildPrompt(searchText, history), {
-          responseConstraint: SUGGESTIONS_RESPONSE_SCHEMA,
+          responseConstraint: buildSuggestionsResponseSchema(this.format === 'sql'),
         })
         break
       } catch (err) {
@@ -373,13 +404,10 @@ export class QueryShaper extends HTMLElement {
   }
 
   #buildPrompt(searchText: string, history: string[]): string {
-    const fields = this.fields
-    const fieldsDescription = fields === undefined ? null : Array.isArray(fields) ? JSON.stringify(fields) : fields
     const lines = []
-    if (fieldsDescription !== null) {
-      lines.push(`Available fields: ${fieldsDescription}`)
-      const format = this.format
-      lines.push(`Format: ${typeof format === 'function' ? 'custom' : format}`)
+    const fieldsSection = this.#buildFieldsSection()
+    if (fieldsSection !== null) {
+      lines.push(fieldsSection)
     }
     if (history.length > 0) {
       lines.push(`History: ${history.join(', ')}`)
@@ -388,9 +416,40 @@ export class QueryShaper extends HTMLElement {
     return lines.join('\n')
   }
 
+  #buildFieldsSection(): string | null {
+    const fields = this.fields
+    if (fields === undefined) return null
+    if (this.format === 'sql') return this.#buildSqlFieldsSection(fields)
+    const fieldsDescription = typeof fields === 'string' ? fields : JSON.stringify(fields)
+    const format = this.format
+    return `Available fields: ${fieldsDescription}\nFormat: ${typeof format === 'function' ? 'custom' : format}`
+  }
+
+  #buildSqlFieldsSection(fields: Fields): string {
+    const lines: string[] = []
+    if (typeof fields === 'string') {
+      lines.push(`Available fields: ${fields}`)
+    } else if (Array.isArray(fields)) {
+      const resource = this.getAttribute('resource')
+      if (resource) {
+        lines.push(describeResources({ [resource]: fields }))
+      } else {
+        lines.push(`Available fields: ${JSON.stringify(fields)}`)
+      }
+    } else {
+      lines.push(describeResources(fields))
+    }
+    lines.push('Write SQL for DuckDB.')
+    return lines.join('\n')
+  }
+
   #toSuggestion(raw: RawSuggestion): Suggestion {
     if (raw.kind === 'expression') {
-      return { kind: 'expression', fields: raw.fields, text: this.#renderFormat(raw.fields) }
+      if (this.format === 'sql') {
+        return { kind: 'expression', text: raw.text ?? '' }
+      }
+      const fields = raw.fields ?? []
+      return { kind: 'expression', fields, text: this.#renderFormat(fields) }
     }
     return raw
   }
