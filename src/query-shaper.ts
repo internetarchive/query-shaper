@@ -49,6 +49,24 @@ const DEFAULT_KIND_CAPS: Record<string, number> = Object.fromEntries(
   KIND_CONFIG.map((k) => [k.kind, k.defaultCap]),
 )
 
+const SUPPORTED_MODEL_LANGUAGES = ['de', 'en', 'es', 'fr', 'ja']
+
+function detectModelLanguage(): string {
+  const lang = document.documentElement.lang.split('-')[0]?.toLowerCase()
+  return lang && SUPPORTED_MODEL_LANGUAGES.includes(lang) ? lang : 'en'
+}
+
+function languageModelOptions(): {
+  expectedInputs: Array<{ type: 'text'; languages: string[] }>
+  expectedOutputs: Array<{ type: 'text'; languages: string[] }>
+} {
+  const languages = [detectModelLanguage()]
+  return {
+    expectedInputs: [{ type: 'text', languages }],
+    expectedOutputs: [{ type: 'text', languages }],
+  }
+}
+
 function isFileResource(name: string): boolean {
   const trimmed = name.trim()
   if (trimmed.includes('(') && trimmed.includes(')')) return true
@@ -653,7 +671,7 @@ export class QueryShaper extends HTMLElement {
       this.#emitStatus('unavailable')
       return
     }
-    const availability = await LM.availability()
+    const availability = await LM.availability(languageModelOptions())
     this.#emitStatus(availability)
     if (availability === 'available') {
       this.#session = await this.#createSession(LM)
@@ -662,7 +680,7 @@ export class QueryShaper extends HTMLElement {
 
   async #createSession(LM: LanguageModelAPI): Promise<LanguageModelSession> {
     if (!sharedBaseSession) {
-      sharedBaseSession = LM.create()
+      sharedBaseSession = LM.create(languageModelOptions())
     }
     const base = await sharedBaseSession
     return base.clone()

@@ -7,6 +7,7 @@ describe('QueryShaper session lifecycle', () => {
     __resetSharedSessionForTests()
     delete (globalThis as { LanguageModel?: unknown }).LanguageModel
     document.body.innerHTML = ''
+    document.documentElement.lang = ''
   })
 
   it('emits an unavailable status when the browser has no LanguageModel API', async () => {
@@ -88,6 +89,52 @@ describe('QueryShaper session lifecycle', () => {
     input.dispatchEvent(new Event('focus'))
 
     expect(lm.availability).toHaveBeenCalledTimes(1)
+  })
+
+  it('declares expectedInputs/expectedOutputs, defaulting to en when no document language is set', async () => {
+    const lm = mockLanguageModel({ availability: 'available' })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.create).toHaveBeenCalledTimes(1))
+
+    const expectedOptions = {
+      expectedInputs: [{ type: 'text', languages: ['en'] }],
+      expectedOutputs: [{ type: 'text', languages: ['en'] }],
+    }
+    expect(lm.availability).toHaveBeenCalledWith(expectedOptions)
+    expect(lm.create).toHaveBeenCalledWith(expectedOptions)
+  })
+
+  it('uses the document language when it is one of the models supported languages', async () => {
+    document.documentElement.lang = 'es'
+    const lm = mockLanguageModel({ availability: 'available' })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.create).toHaveBeenCalledTimes(1))
+
+    expect(lm.create).toHaveBeenCalledWith({
+      expectedInputs: [{ type: 'text', languages: ['es'] }],
+      expectedOutputs: [{ type: 'text', languages: ['es'] }],
+    })
+  })
+
+  it('falls back to en when the document language is not one of the models supported languages', async () => {
+    document.documentElement.lang = 'zh-CN'
+    const lm = mockLanguageModel({ availability: 'available' })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.create).toHaveBeenCalledTimes(1))
+
+    expect(lm.create).toHaveBeenCalledWith({
+      expectedInputs: [{ type: 'text', languages: ['en'] }],
+      expectedOutputs: [{ type: 'text', languages: ['en'] }],
+    })
   })
 
   it('does not accumulate duplicate listeners across a disconnect/reconnect cycle', async () => {

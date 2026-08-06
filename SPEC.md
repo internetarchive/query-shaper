@@ -292,6 +292,15 @@ is dropped and `query-shaper-error` fires with `phase:
      inviting the user to enable client-side search enhancement, with a
      button to trigger the download and a dismiss option. Dismissal is
      remembered in localStorage (origin-scoped) so it doesn't reappear.
+
+   Both `availability()` and `create()` are called with the same
+   `expectedInputs`/`expectedOutputs` options (`{ type: "text", languages:
+   [...] }`) — the Prompt API otherwise warns that it can't attest
+   output-safety for an unspecified language, and passing mismatched options
+   to the two calls is explicitly discouraged upstream. The language comes
+   from `document.documentElement.lang` (first subtag, lowercased), falling
+   back to `en` when unset or not currently one of the model's supported
+   languages (`de`, `en`, `es`, `fr`, `ja`).
 2. **Debounced input** (~400ms pause — a starting point, expected to need
    empirical tuning against real model latency): build **one** prompt call
    combining Fields, Format instructions, History (most recent entries up to
