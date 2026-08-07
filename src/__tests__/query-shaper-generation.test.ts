@@ -216,7 +216,7 @@ describe('QueryShaper generation', () => {
           {
             kind: 'expression',
             fields: [
-              { field: 'title', value: '"climate change"' },
+              { field: 'title', value: 'climate change' },
               { field: 'year', value: '2020', operator: 'AND' },
             ],
           },
@@ -246,11 +246,65 @@ describe('QueryShaper generation', () => {
         kind: 'expression',
         text: 'title:"climate change" AND year:2020',
         fields: [
-          { field: 'title', value: '"climate change"' },
+          { field: 'title', value: 'climate change' },
           { field: 'year', value: '2020', operator: 'AND' },
         ],
       },
     ])
+  })
+
+  it('does not double-quote a field value the model already quoted itself', async () => {
+    const lm = mockLanguageModel({
+      promptResponse: {
+        suggestions: [{ kind: 'expression', fields: [{ field: 'title', value: '"climate change"' }] }],
+      },
+    })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+    shaper.setAttribute('fields', '[{"name":"title"}]')
+    shaper.setAttribute('format', 'lucene')
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const suggestionEvents: unknown[] = []
+    shaper.addEventListener('query-shaper-suggestions', (e) => {
+      suggestionEvents.push((e as CustomEvent).detail.suggestions)
+    })
+
+    input.value = 'climate change'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
+
+    expect((suggestionEvents[0] as Array<{ text: string }>).at(0)?.text).toBe('title:"climate change"')
+  })
+
+  it('leaves a bare, unscoped multi-word term unquoted in the lucene format', async () => {
+    const lm = mockLanguageModel({
+      promptResponse: {
+        suggestions: [{ kind: 'expression', fields: [{ value: 'climate change' }] }],
+      },
+    })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+    shaper.setAttribute('fields', '[{"name":"title"}]')
+    shaper.setAttribute('format', 'lucene')
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const suggestionEvents: unknown[] = []
+    shaper.addEventListener('query-shaper-suggestions', (e) => {
+      suggestionEvents.push((e as CustomEvent).detail.suggestions)
+    })
+
+    input.value = 'climat change'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
+
+    expect((suggestionEvents[0] as Array<{ text: string }>).at(0)?.text).toBe('climate change')
   })
 
   it('renders bare, unscoped terms alongside field-scoped ones in the lucene format', async () => {
@@ -325,6 +379,43 @@ describe('QueryShaper generation', () => {
 
     expect((suggestionEvents[0] as Array<{ text: string }>).at(0)?.text).toBe(
       '+quick -fox "exact phrase" +title:foo',
+    )
+  })
+
+  it('quotes a multi-word phrase in simple-query-string even when the model forgot to, bare or fielded', async () => {
+    const lm = mockLanguageModel({
+      promptResponse: {
+        suggestions: [
+          {
+            kind: 'expression',
+            fields: [
+              { value: 'exact phrase' },
+              { field: 'title', value: 'climate change', operator: '+' },
+            ],
+          },
+        ],
+      },
+    })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+    shaper.setAttribute('fields', '[{"name":"title"}]')
+    shaper.setAttribute('format', 'simple-query-string')
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const suggestionEvents: unknown[] = []
+    shaper.addEventListener('query-shaper-suggestions', (e) => {
+      suggestionEvents.push((e as CustomEvent).detail.suggestions)
+    })
+
+    input.value = 'exact phrase climate change'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
+
+    expect((suggestionEvents[0] as Array<{ text: string }>).at(0)?.text).toBe(
+      '"exact phrase" +title:"climate change"',
     )
   })
 

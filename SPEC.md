@@ -65,14 +65,23 @@ Expression's rendered text is arrived at:
 - `lucene` — `field:value` tokens, space-separated, boolean operators/grouping;
   a field/value pair with no `field` renders as a bare, unscoped term (Lucene
   itself allows mixing bare terms with fielded clauses in one query, e.g.
-  `climate change title:"policy"`).
+  `climate change title:"policy"`). A multi-word **fielded** value is always
+  quoted (`title:"climate change"`) — query-shaper adds the quotes itself
+  deterministically rather than relying on the model to remember to, since
+  that's proven unreliable in practice; a bare multi-word term is left
+  unquoted, since that's normal, unscoped search-box input.
 - `simple-query-string` — the classic `+required -excluded "exact phrase"`
   prefix-operator style: `+` marks a term required, `-` marks one excluded,
   no prefix means optional/should-match, and quoted values are preserved as
   exact phrases. Matches Elasticsearch's `simple_query_string` query and
   MySQL's boolean full-text mode, and is what most people mean by
   "traditional web search syntax." Bare terms are the primary case here;
-  field-scoped terms (`+title:foo`) are supported but secondary.
+  field-scoped terms (`+title:foo`) are supported but secondary. Since
+  quoting means "exact phrase" here — not just a fielded-value disambiguator
+  like in `lucene` — a multi-word value is quoted whether bare or fielded,
+  same deterministic rule as `lucene`. Either format leaves an
+  already-quoted value (the model quoted it itself) alone rather than
+  double-quoting it.
 - `url-params` — field/value pairs rendered as URL query parameters. When a
   **`base`** attribute is set, the rendered text is the full URL (`base` +
   `?` + the query string) rather than a bare query string; when `base` is

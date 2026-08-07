@@ -68,6 +68,12 @@ function languageModelOptions(): {
   }
 }
 
+function quoteMultiWord(value: string): string {
+  const alreadyQuoted = value.length > 1 && value.startsWith('"') && value.endsWith('"')
+  if (alreadyQuoted) return value
+  return /\s/.test(value) ? `"${value}"` : value
+}
+
 function isFileResource(name: string): boolean {
   const trimmed = name.trim()
   if (trimmed.includes('(') && trimmed.includes(')')) return true
@@ -626,12 +632,18 @@ export class QueryShaper extends HTMLElement {
       const query = new URLSearchParams(fields.map((f) => [f.field ?? 'q', f.value] as [string, string])).toString()
       return this.#hasBase() ? `${this.base}?${query}` : query
     }
-    const token = (f: FieldValue) => (f.field ? `${f.field}:${f.value}` : f.value)
     if (format === 'simple-query-string') {
+      // Quoting means "exact phrase" here, for a bare term as much as a fielded one — never trust
+      // the model to remember it itself, since that's proven unreliable in practice.
+      const token = (f: FieldValue) =>
+        f.field ? `${f.field}:${quoteMultiWord(f.value)}` : quoteMultiWord(f.value)
       return fields
         .map((f) => `${f.operator === '+' || f.operator === '-' ? f.operator : ''}${token(f)}`)
         .join(' ')
     }
+    // Bare terms stay unquoted here — an unscoped multi-word term is normal, unquoted search-box
+    // input; only a fielded value's multi-word phrase is ambiguous without quotes.
+    const token = (f: FieldValue) => (f.field ? `${f.field}:${quoteMultiWord(f.value)}` : f.value)
     return fields.map((f, i) => (i === 0 || !f.operator ? token(f) : `${f.operator} ${token(f)}`)).join(' ')
   }
 
