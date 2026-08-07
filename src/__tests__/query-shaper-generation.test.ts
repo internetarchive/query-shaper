@@ -871,6 +871,61 @@ describe('QueryShaper generation', () => {
     expect(promptText).toContain('search four')
   })
 
+  it('reads History from an in-memory cache after the first read, without re-reading localStorage on later queries', async () => {
+    localStorage.setItem('query-shaper:history:search', JSON.stringify(['old search']))
+    const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { input } = mount()
+    const getItemSpy = vi.spyOn(localStorage, 'getItem')
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    input.value = 'first query'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
+
+    const historyKeyCalls = () =>
+      getItemSpy.mock.calls.filter(([key]) => key === 'query-shaper:history:search').length
+    expect(historyKeyCalls()).toBe(1)
+
+    input.value = 'second query'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(2))
+
+    expect(historyKeyCalls()).toBe(1)
+    getItemSpy.mockRestore()
+  })
+
+  it('reflects a newly recorded entry in the next query without needing a fresh localStorage read', async () => {
+    const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    input.value = 'first query'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
+
+    shaper.accept({ kind: 'correction', text: 'accepted text' })
+    const getItemSpy = vi.spyOn(localStorage, 'getItem')
+
+    input.value = 'second query'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(2))
+
+    const [promptText] = lm.clonedSession.prompt.mock.calls[1] as [string, unknown]
+    expect(promptText).toContain('accepted text')
+    expect(getItemSpy).not.toHaveBeenCalledWith('query-shaper:history:search')
+    getItemSpy.mockRestore()
+  })
+
   it('retries a bounded number of times on a transient UnknownError, succeeding if a later attempt works', async () => {
     const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm

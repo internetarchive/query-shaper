@@ -151,6 +151,15 @@ partition key for History. Defaults to the Target's `id` (always available,
 since `for` requires one) — set this only when multiple instances should
 deliberately _share_ one History.
 
+Reads are served from an in-memory cache, primed once from localStorage on
+first access rather than on every generation call — that's the hot path,
+running on every debounced query, and doesn't need to touch storage that
+often. Writes (Accept, form submit — much rarer) stay immediate, always
+re-reading localStorage fresh rather than trusting the cache before merging
+and writing back, so two instances deliberately sharing a `history-key`
+interleave correctly instead of one silently overwriting the other's
+contribution with a stale in-memory copy.
+
 **`headless`** (boolean attribute): renders no popup UI; only emits the
 events below. Lets a host with its own existing suggestion widget consume
 Suggestion data directly instead of fighting two competing popups.

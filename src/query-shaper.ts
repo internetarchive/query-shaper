@@ -730,12 +730,21 @@ export class QueryShaper extends HTMLElement {
     return Number(this.getAttribute('max-history') ?? 10)
   }
 
+  #historyCache: string[] | undefined
+
+  // Read on every debounced generation call — the hot path — so it's served from an
+  // in-memory cache, primed once from localStorage on first access rather than on every
+  // call. Writes (rare: only on Accept/submit) stay immediate below, keeping the cache
+  // in sync without ever deferring persistence.
   #readHistory(): string[] {
     const max = this.#maxHistory()
     if (max <= 0) return []
-    const raw = localStorage.getItem(this.#historyKey())
-    const entries: string[] = raw ? JSON.parse(raw) : []
-    return entries.slice(-max)
+    if (this.#historyCache === undefined) {
+      const raw = localStorage.getItem(this.#historyKey())
+      const entries: string[] = raw ? JSON.parse(raw) : []
+      this.#historyCache = entries.slice(-max)
+    }
+    return this.#historyCache
   }
 
   #recordHistory(text: string): void {
@@ -743,12 +752,18 @@ export class QueryShaper extends HTMLElement {
     const max = this.#maxHistory()
     if (max <= 0) {
       localStorage.removeItem(key)
+      this.#historyCache = []
       return
     }
+    // Re-read fresh from localStorage rather than trusting the cache, so a sibling
+    // instance sharing this history-key (see the history-key attribute) is merged
+    // with, not silently overwritten by, a stale in-memory copy.
     const raw = localStorage.getItem(key)
     const entries: string[] = raw ? JSON.parse(raw) : []
     entries.push(text)
-    localStorage.setItem(key, JSON.stringify(entries.slice(-max)))
+    const trimmed = entries.slice(-max)
+    localStorage.setItem(key, JSON.stringify(trimmed))
+    this.#historyCache = trimmed
   }
 
   #sessionPromise: Promise<void> | undefined
