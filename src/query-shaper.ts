@@ -37,6 +37,7 @@ export type Suggestion =
 
 const DEBOUNCE_MS = 400
 const DOWNLOAD_PROMPT_DISMISSED_KEY = 'query-shaper:download-prompt-dismissed'
+const MAX_UNKNOWN_ERROR_RETRIES = 2
 
 const KIND_CONFIG = [
   { kind: 'correction', defaultCap: 1 },
@@ -134,20 +135,45 @@ function buildSuggestionsResponseSchema(isSql: boolean) {
     properties: {
       suggestions: {
         type: 'array',
+        description: 'The list of Suggestions to offer, already sorted by relevance.',
         items: {
           type: 'object',
           properties: {
-            kind: { type: 'string', enum: ['correction', 'expansion', 'expression'] },
-            text: { type: 'string' },
-            resource: { type: 'string' },
+            kind: {
+              type: 'string',
+              enum: ['correction', 'expansion', 'expression'],
+              description:
+                'correction: fixes a likely typo or misspelling in the Search Text, keeping its meaning intact. ' +
+                'expansion: broadens the Search Text with related terms, synonyms, or alternate phrasings. ' +
+                'expression: reformulates the Search Text as a fielded and/or boolean query using the Available Fields below.',
+            },
+            text: {
+              type: 'string',
+              description:
+                'For correction/expansion: the corrected or broadened search text, in the same language and style as the input. ' +
+                'For expression: the fully rendered query text.',
+            },
+            resource: {
+              type: 'string',
+              description:
+                'Only for an expression kind under a REST-API format: the endpoint this expression targets. Omit otherwise.',
+            },
             fields: {
               type: 'array',
+              description:
+                'Only for an expression kind: the field/value/operator tuples the query text was built from. Omit for correction/expansion.',
               items: {
                 type: 'object',
                 properties: {
-                  field: { type: 'string' },
-                  value: { type: 'string' },
-                  operator: { type: 'string' },
+                  field: {
+                    type: 'string',
+                    description: 'The Available Field this value applies to. Omit for a bare, unscoped term.',
+                  },
+                  value: { type: 'string', description: 'The term or field value.' },
+                  operator: {
+                    type: 'string',
+                    description: 'A format-specific operator, e.g. AND/OR, or +/-. Omit when not applicable.',
+                  },
                 },
                 required: ['value'],
               },
@@ -424,6 +450,7 @@ export class QueryShaper extends HTMLElement {
     }
     let history = this.#readHistory()
     let raw: string
+    let unknownErrorRetries = 0
     for (;;) {
       try {
         raw = await this.#session.prompt(this.#buildPrompt(searchText, history), {
@@ -434,6 +461,11 @@ export class QueryShaper extends HTMLElement {
         const isQuotaExceeded = err instanceof Error && err.name === 'QuotaExceededError'
         if (isQuotaExceeded && history.length > 0) {
           history = history.slice(1)
+          continue
+        }
+        const isUnknownError = err instanceof Error && err.name === 'UnknownError'
+        if (isUnknownError && unknownErrorRetries < MAX_UNKNOWN_ERROR_RETRIES) {
+          unknownErrorRetries += 1
           continue
         }
         throw err

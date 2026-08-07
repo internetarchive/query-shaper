@@ -604,6 +604,57 @@ describe('QueryShaper generation', () => {
     expect(promptText).toContain('search four')
   })
 
+  it('retries a bounded number of times on a transient UnknownError, succeeding if a later attempt works', async () => {
+    const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const unknownError = Object.assign(new Error('An unknown error occurred: kErrorUnknown'), { name: 'UnknownError' })
+    lm.clonedSession.prompt
+      .mockRejectedValueOnce(unknownError)
+      .mockRejectedValueOnce(unknownError)
+      .mockResolvedValueOnce(JSON.stringify({ suggestions: [{ kind: 'correction', text: 'fixed' }] }))
+    const { shaper, input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const suggestionEvents: unknown[] = []
+    shaper.addEventListener('query-shaper-suggestions', (e) => {
+      suggestionEvents.push((e as CustomEvent).detail.suggestions)
+    })
+
+    input.value = 'climat change'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
+
+    expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(3)
+    expect(suggestionEvents[0]).toEqual([{ kind: 'correction', text: 'fixed' }])
+  })
+
+  it('gives up and emits query-shaper-error after exhausting UnknownError retries', async () => {
+    const lm = mockLanguageModel({ availability: 'available' })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const unknownError = Object.assign(new Error('An unknown error occurred: kErrorUnknown'), { name: 'UnknownError' })
+    lm.clonedSession.prompt.mockRejectedValue(unknownError)
+    const { shaper, input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const errorEvents: unknown[] = []
+    shaper.addEventListener('query-shaper-error', (e) => {
+      errorEvents.push((e as CustomEvent).detail)
+    })
+
+    input.value = 'climat change'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(errorEvents).toHaveLength(1))
+
+    expect(lm.clonedSession.prompt.mock.calls.length).toBeGreaterThan(1)
+    expect((errorEvents[0] as { phase: string }).phase).toBe('generate')
+  })
+
   it('trims the oldest History entry and retries on context overflow', async () => {
     localStorage.setItem('query-shaper:history:search', JSON.stringify(['old search one', 'old search two']))
     const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })

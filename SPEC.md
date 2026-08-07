@@ -348,7 +348,12 @@ is dropped and `query-shaper-error` fires with `phase:
    context window, proactively trim the _oldest_ History entries first
    (before touching Fields/Format/Search Text) and retry, rather than
    surfacing an error for something the user configured a number for.
-7. **Any other failure**: emit `query-shaper-error`; that generation cycle
+7. **Transient model errors**: a `responseConstraint` call can fail with a
+   generic `UnknownError` that isn't tied to any specific schema shape —
+   observed to be intermittent (the same schema succeeds on one call and
+   fails on the next), consistent with Chrome's on-device model still being
+   actively developed. Retried up to twice before giving up.
+8. **Any other failure**: emit `query-shaper-error`; that generation cycle
    simply shows no suggestions; the Target keeps working as a plain input.
 
 ## Demo plan
