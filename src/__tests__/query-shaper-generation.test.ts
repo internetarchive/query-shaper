@@ -280,6 +280,35 @@ describe('QueryShaper generation', () => {
     expect((suggestionEvents[0] as Array<{ text: string }>).at(0)?.text).toBe('title:"climate change"')
   })
 
+  it('falls back to the model\'s raw text when it omits fields for a lucene/simple-query-string/url-params Expression', async () => {
+    const lm = mockLanguageModel({
+      promptResponse: {
+        suggestions: [{ kind: 'expression', text: 'climate change documentaries AND year=2020' }],
+      },
+    })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+    shaper.setAttribute('fields', '[{"name":"year"}]')
+    shaper.setAttribute('format', 'lucene')
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const suggestionEvents: unknown[] = []
+    shaper.addEventListener('query-shaper-suggestions', (e) => {
+      suggestionEvents.push((e as CustomEvent).detail.suggestions)
+    })
+
+    input.value = 'climate chang documentaries from 2020'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
+
+    expect(suggestionEvents[0]).toEqual([
+      { kind: 'expression', text: 'climate change documentaries AND year=2020' },
+    ])
+  })
+
   it('leaves a bare, unscoped multi-word term unquoted in the lucene format', async () => {
     const lm = mockLanguageModel({
       promptResponse: {

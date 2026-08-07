@@ -326,6 +326,21 @@ is dropped and `query-shaper-error` fires with `phase:
    pass — one call, one response, avoiding both the latency and the
    response-merging complexity a staged pipeline would add.
 
+   The schema alone doesn't reliably get the model to produce more than one
+   Suggestion — the prompt explicitly spells out the per-kind caps ("up to 1
+   correction... up to 2 expansions... up to 3 expressions... as its own
+   separate item") and instructs it never to invent extra properties. The
+   schema itself sets `additionalProperties: false` at every object level,
+   since the model has been observed inventing sibling properties (e.g. a
+   `fields_expanded` next to `fields`) to smuggle in content it didn't fit
+   into the declared shape, which then gets silently dropped.
+
+   If the model still returns an Expression with no `fields` at all under a
+   tuple-rendering Format (`lucene`/`simple-query-string`/`url-params`/
+   `rest-api`) but does provide `text`, that `text` is used verbatim as a
+   fallback rather than rendering an empty, invisible Suggestion from an
+   empty tuple set.
+
    Debouncing only cancels a *pending* timer, not an already-started model
    call — real on-device latency means a call from an earlier pause can
    still be in flight when a later one starts. Each call is tagged with a

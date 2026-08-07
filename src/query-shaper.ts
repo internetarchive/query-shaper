@@ -167,7 +167,8 @@ function buildSuggestionsResponseSchema(isSql: boolean) {
             fields: {
               type: 'array',
               description:
-                'Only for an expression kind: the field/value/operator tuples the query text was built from. Omit for correction/expansion.',
+                'Only for an expression kind: EVERY field/value/operator tuple the query text was built from, ' +
+                'all in this one array — never invent a second array or a differently-named property for more of them.',
               items: {
                 type: 'object',
                 properties: {
@@ -182,14 +183,17 @@ function buildSuggestionsResponseSchema(isSql: boolean) {
                   },
                 },
                 required: ['value'],
+                additionalProperties: false,
               },
             },
           },
           required: isSql ? ['kind', 'text'] : ['kind'],
+          additionalProperties: false,
         },
       },
     },
     required: ['suggestions'],
+    additionalProperties: false,
   }
 }
 
@@ -498,6 +502,18 @@ export class QueryShaper extends HTMLElement {
 
   #buildPrompt(searchText: string, history: string[]): string {
     const lines = []
+    const allowExpression = this.fields !== undefined
+    lines.push(
+      allowExpression
+        ? 'Suggest improvements to the search text below: up to 1 correction (only if there is a likely typo or ' +
+            'misspelling), up to 2 expansions (related terms, synonyms, or alternate phrasings), and up to 3 ' +
+            'expressions (fielded/boolean reformulations using the Available Fields). Return each as its own ' +
+            'separate item in the suggestions array — never merge multiple kinds into one item, and never invent ' +
+            'extra properties beyond the ones described.'
+        : 'Suggest improvements to the search text below: up to 1 correction (only if there is a likely typo or ' +
+            'misspelling), and up to 2 expansions (related terms, synonyms, or alternate phrasings). Return each ' +
+            'as its own separate item in the suggestions array.',
+    )
     const fieldsSection = this.#buildFieldsSection()
     if (fieldsSection !== null) {
       lines.push(fieldsSection)
@@ -570,6 +586,11 @@ export class QueryShaper extends HTMLElement {
       }
       const fields = raw.fields ?? []
       if (this.format === 'rest-api') return this.#toRestSuggestion(raw, fields)
+      if (fields.length === 0 && raw.text) {
+        // The model wrote free text instead of decomposing into fields — a best-effort
+        // fallback beats silently rendering an empty, invisible suggestion.
+        return { kind: 'expression', text: raw.text }
+      }
       return { kind: 'expression', fields, text: this.#renderFormat(fields) }
     }
     return raw
