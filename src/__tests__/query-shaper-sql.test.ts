@@ -15,7 +15,7 @@ describe('QueryShaper SQL', () => {
     localStorage.clear()
   })
 
-  it('describes a Resource-keyed Fields object as tables/files in the prompt', async () => {
+  it('describes a Resource-keyed Fields object as tables/files in the append() priming call', async () => {
     const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const { shaper, input } = mount()
@@ -26,19 +26,15 @@ describe('QueryShaper SQL', () => {
     shaper.setAttribute('format', 'sql')
 
     input.dispatchEvent(new Event('focus'))
-    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(lm.instanceSession.append).toHaveBeenCalledTimes(1))
 
-    input.value = 'books in the fiction category'
-    input.dispatchEvent(new Event('input'))
-    await vi.advanceTimersByTimeAsync(400)
-    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
-
-    const [promptText] = lm.clonedSession.prompt.mock.calls[0] as [string, unknown]
-    expect(promptText).toContain('Available tables:')
-    expect(promptText).toContain('- books(title, year)')
-    expect(promptText).toContain('Available files (DuckDB can query these directly — local or remote):')
-    expect(promptText).toContain("- read_csv('categories.csv')(id, name)")
-    expect(promptText).toContain('Write SQL for DuckDB.')
+    const [[message]] = lm.instanceSession.append.mock.calls[0] as [[{ content: string }]]
+    const primingContent = message.content
+    expect(primingContent).toContain('Available tables:')
+    expect(primingContent).toContain('- books(title, year)')
+    expect(primingContent).toContain('Available files (DuckDB can query these directly — local or remote):')
+    expect(primingContent).toContain("- read_csv('categories.csv')(id, name)")
+    expect(primingContent).toContain('Write SQL for DuckDB.')
   })
 
   it('describes a bare Fields array + resource attribute as a single table/file line', async () => {
@@ -50,17 +46,13 @@ describe('QueryShaper SQL', () => {
     shaper.setAttribute('format', 'sql')
 
     input.dispatchEvent(new Event('focus'))
-    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(lm.instanceSession.append).toHaveBeenCalledTimes(1))
 
-    input.value = 'books after 2020'
-    input.dispatchEvent(new Event('input'))
-    await vi.advanceTimersByTimeAsync(400)
-    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
-
-    const [promptText] = lm.clonedSession.prompt.mock.calls[0] as [string, unknown]
-    expect(promptText).toContain('Available tables:')
-    expect(promptText).toContain('- books(title, year)')
-    expect(promptText).toContain('Write SQL for DuckDB.')
+    const [[message]] = lm.instanceSession.append.mock.calls[0] as [[{ content: string }]]
+    const primingContent = message.content
+    expect(primingContent).toContain('Available tables:')
+    expect(primingContent).toContain('- books(title, year)')
+    expect(primingContent).toContain('Write SQL for DuckDB.')
   })
 
   it('classifies a quoted-path resource attribute as a file', async () => {
@@ -72,16 +64,12 @@ describe('QueryShaper SQL', () => {
     shaper.setAttribute('format', 'sql')
 
     input.dispatchEvent(new Event('focus'))
-    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(lm.instanceSession.append).toHaveBeenCalledTimes(1))
 
-    input.value = 'rows after 2020'
-    input.dispatchEvent(new Event('input'))
-    await vi.advanceTimersByTimeAsync(400)
-    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
-
-    const [promptText] = lm.clonedSession.prompt.mock.calls[0] as [string, unknown]
-    expect(promptText).toContain('Available files (DuckDB can query these directly — local or remote):')
-    expect(promptText).toContain("- 'data.parquet'(title, year)")
+    const [[message]] = lm.instanceSession.append.mock.calls[0] as [[{ content: string }]]
+    const primingContent = message.content
+    expect(primingContent).toContain('Available files (DuckDB can query these directly — local or remote):')
+    expect(primingContent).toContain("- 'data.parquet'(title, year)")
   })
 
   it('passes free-form text Fields through as-is under sql, still adding the DuckDB instruction', async () => {
@@ -92,16 +80,12 @@ describe('QueryShaper SQL', () => {
     shaper.setAttribute('format', 'sql')
 
     input.dispatchEvent(new Event('focus'))
-    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(lm.instanceSession.append).toHaveBeenCalledTimes(1))
 
-    input.value = 'books after 2020'
-    input.dispatchEvent(new Event('input'))
-    await vi.advanceTimersByTimeAsync(400)
-    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
-
-    const [promptText] = lm.clonedSession.prompt.mock.calls[0] as [string, unknown]
-    expect(promptText).toContain('there is a books table with title, year, author columns')
-    expect(promptText).toContain('Write SQL for DuckDB.')
+    const [[message]] = lm.instanceSession.append.mock.calls[0] as [[{ content: string }]]
+    const primingContent = message.content
+    expect(primingContent).toContain('there is a books table with title, year, author columns')
+    expect(primingContent).toContain('Write SQL for DuckDB.')
   })
 
   it('falls back to a generic fields listing under sql when no resource is declared', async () => {
@@ -113,16 +97,12 @@ describe('QueryShaper SQL', () => {
     // deliberately no `resource` attribute
 
     input.dispatchEvent(new Event('focus'))
-    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(lm.instanceSession.append).toHaveBeenCalledTimes(1))
 
-    input.value = 'books after 2020'
-    input.dispatchEvent(new Event('input'))
-    await vi.advanceTimersByTimeAsync(400)
-    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
-
-    const [promptText] = lm.clonedSession.prompt.mock.calls[0] as [string, unknown]
-    expect(promptText).toContain('Available fields:')
-    expect(promptText).toContain('Write SQL for DuckDB.')
+    const [[message]] = lm.instanceSession.append.mock.calls[0] as [[{ content: string }]]
+    const primingContent = message.content
+    expect(primingContent).toContain('Available fields:')
+    expect(primingContent).toContain('Write SQL for DuckDB.')
   })
 
   it('falls back to JSON.stringify for a Resource-keyed Fields object under a non-sql format', async () => {
@@ -133,16 +113,12 @@ describe('QueryShaper SQL', () => {
     shaper.setAttribute('format', 'lucene')
 
     input.dispatchEvent(new Event('focus'))
-    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(lm.instanceSession.append).toHaveBeenCalledTimes(1))
 
-    input.value = 'books about cats'
-    input.dispatchEvent(new Event('input'))
-    await vi.advanceTimersByTimeAsync(400)
-    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
-
-    const [promptText] = lm.clonedSession.prompt.mock.calls[0] as [string, unknown]
-    expect(promptText).toContain('{"books":[{"name":"title"}]}')
-    expect(promptText).not.toContain('[object Object]')
+    const [[message]] = lm.instanceSession.append.mock.calls[0] as [[{ content: string }]]
+    const primingContent = message.content
+    expect(primingContent).toContain('{"books":[{"name":"title"}]}')
+    expect(primingContent).not.toContain('[object Object]')
   })
 
   it('uses the model-authored text verbatim for a sql Expression, with no fields property', async () => {

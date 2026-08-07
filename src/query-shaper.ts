@@ -17,6 +17,7 @@ export type LanguageModelAvailability = 'unavailable' | 'downloadable' | 'downlo
 export type LanguageModelSession = {
   clone(): Promise<LanguageModelSession>
   destroy(): void
+  append(messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>): Promise<void>
   prompt(input: string, options?: { responseConstraint?: unknown; signal?: AbortSignal }): Promise<string>
 }
 
@@ -49,6 +50,13 @@ const KIND_ORDER = KIND_CONFIG.map((k) => k.kind)
 const DEFAULT_KIND_CAPS: Record<string, number> = Object.fromEntries(
   KIND_CONFIG.map((k) => [k.kind, k.defaultCap]),
 )
+
+const GENERIC_INSTRUCTION =
+  'Suggest improvements to the search text given in each prompt: up to 1 correction (only if there is a likely ' +
+  'typo or misspelling), up to 2 expansions (related terms, synonyms, or alternate phrasings), and — if available ' +
+  'fields are described for you — up to 3 expressions (fielded/boolean reformulations using those fields). ' +
+  'Return each as its own separate item in the suggestions array — never merge multiple kinds into one item, and ' +
+  'never invent extra properties beyond the ones described.'
 
 const SUPPORTED_MODEL_LANGUAGES = ['de', 'en', 'es', 'fr', 'ja']
 
@@ -470,32 +478,39 @@ export class QueryShaper extends HTMLElement {
     // perfectly relevant in-flight one for no reason.
     if (trimmed === this.#lastRequestedText) return
     this.#lastRequestedText = trimmed
+    await this.#ensureFieldsPrimed()
+    if (!this.#session) return
     this.#abortController?.abort()
     const controller = new AbortController()
     this.#abortController = controller
     let history = this.#readHistory()
     let raw: string
     let unknownErrorRetries = 0
-    for (;;) {
-      try {
-        raw = await this.#session.prompt(this.#buildPrompt(searchText, history), {
-          responseConstraint: buildSuggestionsResponseSchema(this.format === 'sql'),
-          signal: controller.signal,
-        })
-        break
-      } catch (err) {
-        const isQuotaExceeded = err instanceof Error && err.name === 'QuotaExceededError'
-        if (isQuotaExceeded && history.length > 0) {
-          history = history.slice(1)
-          continue
+    const child = await this.#session.clone()
+    try {
+      for (;;) {
+        try {
+          raw = await child.prompt(this.#buildQueryPrompt(searchText, history), {
+            responseConstraint: buildSuggestionsResponseSchema(this.format === 'sql'),
+            signal: controller.signal,
+          })
+          break
+        } catch (err) {
+          const isQuotaExceeded = err instanceof Error && err.name === 'QuotaExceededError'
+          if (isQuotaExceeded && history.length > 0) {
+            history = history.slice(1)
+            continue
+          }
+          const isUnknownError = err instanceof Error && err.name === 'UnknownError'
+          if (isUnknownError && unknownErrorRetries < MAX_UNKNOWN_ERROR_RETRIES) {
+            unknownErrorRetries += 1
+            continue
+          }
+          throw err
         }
-        const isUnknownError = err instanceof Error && err.name === 'UnknownError'
-        if (isUnknownError && unknownErrorRetries < MAX_UNKNOWN_ERROR_RETRIES) {
-          unknownErrorRetries += 1
-          continue
-        }
-        throw err
       }
+    } finally {
+      child.destroy()
     }
     const parsed = JSON.parse(raw) as { suggestions: RawSuggestion[] }
     const allowExpression = this.fields !== undefined
@@ -516,24 +531,8 @@ export class QueryShaper extends HTMLElement {
     this.dispatchEvent(new CustomEvent('query-shaper-suggestions', { detail: { suggestions } }))
   }
 
-  #buildPrompt(searchText: string, history: string[]): string {
+  #buildQueryPrompt(searchText: string, history: string[]): string {
     const lines = []
-    const allowExpression = this.fields !== undefined
-    lines.push(
-      allowExpression
-        ? 'Suggest improvements to the search text below: up to 1 correction (only if there is a likely typo or ' +
-            'misspelling), up to 2 expansions (related terms, synonyms, or alternate phrasings), and up to 3 ' +
-            'expressions (fielded/boolean reformulations using the Available Fields). Return each as its own ' +
-            'separate item in the suggestions array — never merge multiple kinds into one item, and never invent ' +
-            'extra properties beyond the ones described.'
-        : 'Suggest improvements to the search text below: up to 1 correction (only if there is a likely typo or ' +
-            'misspelling), and up to 2 expansions (related terms, synonyms, or alternate phrasings). Return each ' +
-            'as its own separate item in the suggestions array.',
-    )
-    const fieldsSection = this.#buildFieldsSection()
-    if (fieldsSection !== null) {
-      lines.push(fieldsSection)
-    }
     if (history.length > 0) {
       lines.push(`History: ${history.join(', ')}`)
     }
@@ -781,12 +780,37 @@ export class QueryShaper extends HTMLElement {
     }
   }
 
+  #primedFieldsSnapshot: string | null | undefined
+
   async #createSession(LM: LanguageModelAPI): Promise<LanguageModelSession> {
     if (!sharedBaseSession) {
-      sharedBaseSession = LM.create(languageModelOptions())
+      sharedBaseSession = LM.create({
+        ...languageModelOptions(),
+        initialPrompts: [{ role: 'system', content: GENERIC_INSTRUCTION }],
+      })
     }
-    const base = await sharedBaseSession
-    return base.clone()
+    return this.#buildFather(await sharedBaseSession)
+  }
+
+  // Fields/Format only vary per instance when set imperatively — but #buildFieldsSection()
+  // has no caching of its own, so an attribute change would otherwise be silently ignored
+  // once Fields/Format are primed into the father rather than resent on every query.
+  async #ensureFieldsPrimed(): Promise<void> {
+    const currentFieldsContent = this.#buildFieldsSection()
+    if (currentFieldsContent === this.#primedFieldsSnapshot) return
+    if (!sharedBaseSession) return
+    this.#session?.destroy()
+    this.#session = await this.#buildFather(await sharedBaseSession)
+  }
+
+  async #buildFather(base: LanguageModelSession): Promise<LanguageModelSession> {
+    const fieldsContent = this.#buildFieldsSection()
+    const father = await base.clone()
+    if (fieldsContent !== null) {
+      await father.append([{ role: 'user', content: fieldsContent }])
+    }
+    this.#primedFieldsSnapshot = fieldsContent
+    return father
   }
 
   #emitStatus(status: LanguageModelAvailability): void {

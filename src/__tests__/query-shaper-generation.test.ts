@@ -708,26 +708,112 @@ describe('QueryShaper generation', () => {
     expect(suggestions).toHaveLength(6)
   })
 
-  it('includes the Fields description in the prompt sent to the model', async () => {
+  it('clones a fresh child per query and destroys it after use, reusing the same primed instance session', async () => {
+    const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    input.value = 'first query'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(lm.clonedSession.destroy).toHaveBeenCalledTimes(1))
+
+    input.value = 'second query'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(lm.clonedSession.destroy).toHaveBeenCalledTimes(2))
+
+    // The instance session (father) is only ever cloned once from the base — each
+    // query clones a fresh, disposable child FROM the father, not from the base directly.
+    expect(lm.baseSession.clone).toHaveBeenCalledTimes(1)
+    expect(lm.instanceSession.clone).toHaveBeenCalledTimes(2)
+    expect(lm.instanceSession.destroy).not.toHaveBeenCalled()
+  })
+
+  it('rebuilds the primed instance session when Fields changes imperatively', async () => {
+    const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+    shaper.setAttribute('fields', '[{"name":"title"}]')
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.instanceSession.append).toHaveBeenCalledTimes(1))
+
+    input.value = 'first query'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
+
+    shaper.fields = [{ name: 'author' }]
+
+    input.value = 'second query'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(2))
+
+    expect(lm.baseSession.clone).toHaveBeenCalledTimes(2)
+    expect(lm.instanceSession.destroy).toHaveBeenCalledTimes(1)
+    expect(lm.instanceSession.append).toHaveBeenCalledTimes(2)
+    const [[firstMessage]] = lm.instanceSession.append.mock.calls[0] as [[{ content: string }]]
+    const [[secondMessage]] = lm.instanceSession.append.mock.calls[1] as [[{ content: string }]]
+    expect(firstMessage.content).toContain('title')
+    expect(secondMessage.content).toContain('author')
+  })
+
+  it('does not rebuild the primed instance session across queries when Fields is unchanged', async () => {
+    const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+    shaper.setAttribute('fields', '[{"name":"title"}]')
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.instanceSession.append).toHaveBeenCalledTimes(1))
+
+    input.value = 'first query'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
+
+    input.value = 'second query'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(2))
+
+    expect(lm.baseSession.clone).toHaveBeenCalledTimes(1)
+    expect(lm.instanceSession.append).toHaveBeenCalledTimes(1)
+    expect(lm.instanceSession.destroy).not.toHaveBeenCalled()
+  })
+
+  it('includes the Fields description in the append() call that primes the instance session', async () => {
     const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const { shaper, input } = mount()
     shaper.setAttribute('fields', 'title, author, year')
 
     input.dispatchEvent(new Event('focus'))
-    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(lm.instanceSession.append).toHaveBeenCalledTimes(1))
+
+    const [[message]] = lm.instanceSession.append.mock.calls[0] as [[{ role: string; content: string }]]
+    expect(message.role).toBe('user')
+    expect(message.content).toContain('title, author, year')
 
     input.value = 'climate change'
     input.dispatchEvent(new Event('input'))
     await vi.advanceTimersByTimeAsync(400)
     await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
 
+    // Fields/Format now live upstream (primed once via append()), not resent per query.
     const [promptText] = lm.clonedSession.prompt.mock.calls[0] as [string, unknown]
-    expect(promptText).toContain('title, author, year')
+    expect(promptText).not.toContain('title, author, year')
     expect(promptText).toContain('climate change')
   })
 
-  it('includes Format instructions in the prompt when Fields are configured', async () => {
+  it('includes Format instructions in the append() call when Fields are configured', async () => {
     const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const { shaper, input } = mount()
@@ -735,15 +821,10 @@ describe('QueryShaper generation', () => {
     shaper.setAttribute('format', 'url-params')
 
     input.dispatchEvent(new Event('focus'))
-    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(lm.instanceSession.append).toHaveBeenCalledTimes(1))
 
-    input.value = 'climate change'
-    input.dispatchEvent(new Event('input'))
-    await vi.advanceTimersByTimeAsync(400)
-    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
-
-    const [promptText] = lm.clonedSession.prompt.mock.calls[0] as [string, unknown]
-    expect(promptText).toContain('url-params')
+    const [[message]] = lm.instanceSession.append.mock.calls[0] as [[{ role: string; content: string }]]
+    expect(message.content).toContain('url-params')
   })
 
   it('includes prior History entries in the prompt sent to the model', async () => {

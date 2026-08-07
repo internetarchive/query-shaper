@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by ADR-0004
 ---
 
 # Resend Fields/Format per prompt, not primed via `initialPrompts`

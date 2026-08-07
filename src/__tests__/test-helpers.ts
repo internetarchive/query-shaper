@@ -17,22 +17,34 @@ export function mockLanguageModel(
   options: { availability?: string; promptResponse?: unknown; promptError?: Error } = {},
 ) {
   const { availability = 'available', promptResponse, promptError } = options
+  // Three tiers: baseSession (shared "grandfather") -> instanceSession (per-instance
+  // "father", primed with Fields/Format via append()) -> clonedSession (disposable
+  // per-query "child", the one actually prompted for a real response).
   const clonedSession = {
     clone: vi.fn(),
     destroy: vi.fn(),
+    append: vi.fn().mockResolvedValue(undefined),
     prompt: promptError
       ? vi.fn().mockRejectedValue(promptError)
       : vi.fn().mockResolvedValue(JSON.stringify(promptResponse ?? { suggestions: [] })),
   }
-  const baseSession = {
+  const instanceSession = {
     clone: vi.fn().mockResolvedValue(clonedSession),
     destroy: vi.fn(),
+    append: vi.fn().mockResolvedValue(undefined),
+    prompt: vi.fn(),
+  }
+  const baseSession = {
+    clone: vi.fn().mockResolvedValue(instanceSession),
+    destroy: vi.fn(),
+    append: vi.fn().mockResolvedValue(undefined),
     prompt: vi.fn(),
   }
   return {
     availability: vi.fn().mockResolvedValue(availability),
     create: vi.fn().mockResolvedValue(baseSession),
     baseSession,
+    instanceSession,
     clonedSession,
   }
 }

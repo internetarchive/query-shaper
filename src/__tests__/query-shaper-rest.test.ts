@@ -282,7 +282,7 @@ describe('QueryShaper REST-API', () => {
     )
   })
 
-  it('describes a Resource-keyed Fields object as available endpoints in the prompt', async () => {
+  it('describes a Resource-keyed Fields object as available endpoints in the append() priming call', async () => {
     const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const { shaper, input } = mount()
@@ -292,15 +292,16 @@ describe('QueryShaper REST-API', () => {
     )
     shaper.setAttribute('format', 'rest-api')
 
-    await generate(lm, input, 'questions by sawood')
-    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.instanceSession.append).toHaveBeenCalledTimes(1))
 
-    const [promptText] = lm.clonedSession.prompt.mock.calls[0] as [string, unknown]
-    expect(promptText).toContain('Available endpoints:')
-    expect(promptText).toContain('questions(author)')
-    expect(promptText).toContain('responses(question_id)')
-    expect(promptText).toContain('resource')
-    expect(promptText).toContain('{name}')
+    const [[message]] = lm.instanceSession.append.mock.calls[0] as [[{ content: string }]]
+    const primingContent = message.content
+    expect(primingContent).toContain('Available endpoints:')
+    expect(primingContent).toContain('questions(author)')
+    expect(primingContent).toContain('responses(question_id)')
+    expect(primingContent).toContain('resource')
+    expect(primingContent).toContain('{name}')
   })
 
   it('describes a bare Fields array + resource attribute as a single endpoint, without asking for a resource echo', async () => {
@@ -311,12 +312,13 @@ describe('QueryShaper REST-API', () => {
     shaper.setAttribute('resource', 'books')
     shaper.setAttribute('format', 'rest-api')
 
-    await generate(lm, input, 'books by sawood')
-    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.instanceSession.append).toHaveBeenCalledTimes(1))
 
-    const [promptText] = lm.clonedSession.prompt.mock.calls[0] as [string, unknown]
-    expect(promptText).toContain('books(author)')
-    expect(promptText).not.toContain('Return the endpoint')
+    const [[message]] = lm.instanceSession.append.mock.calls[0] as [[{ content: string }]]
+    const primingContent = message.content
+    expect(primingContent).toContain('books(author)')
+    expect(primingContent).not.toContain('Return the endpoint')
   })
 
   it('passes free-form text Fields through under rest-api, asking the model to return the endpoint it inferred', async () => {
@@ -326,11 +328,12 @@ describe('QueryShaper REST-API', () => {
     shaper.setAttribute('fields', 'questions can be searched at questions, listed at responses')
     shaper.setAttribute('format', 'rest-api')
 
-    await generate(lm, input, 'questions by sawood')
-    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.instanceSession.append).toHaveBeenCalledTimes(1))
 
-    const [promptText] = lm.clonedSession.prompt.mock.calls[0] as [string, unknown]
-    expect(promptText).toContain('questions can be searched at questions, listed at responses')
-    expect(promptText).toContain('resource')
+    const [[message]] = lm.instanceSession.append.mock.calls[0] as [[{ content: string }]]
+    const primingContent = message.content
+    expect(primingContent).toContain('questions can be searched at questions, listed at responses')
+    expect(primingContent).toContain('resource')
   })
 })

@@ -73,7 +73,7 @@ describe('QueryShaper session lifecycle', () => {
 
     shaper.remove()
 
-    expect(lm.clonedSession.destroy).toHaveBeenCalledTimes(1)
+    expect(lm.instanceSession.destroy).toHaveBeenCalledTimes(1)
     expect(lm.baseSession.destroy).not.toHaveBeenCalled()
   })
 
@@ -120,7 +120,7 @@ describe('QueryShaper session lifecycle', () => {
       expectedOutputs: [{ type: 'text', languages: ['en'] }],
     }
     expect(lm.availability).toHaveBeenCalledWith(expectedOptions)
-    expect(lm.create).toHaveBeenCalledWith(expectedOptions)
+    expect(lm.create).toHaveBeenCalledWith(expect.objectContaining(expectedOptions))
   })
 
   it('uses the document language when it is one of the models supported languages', async () => {
@@ -132,10 +132,12 @@ describe('QueryShaper session lifecycle', () => {
     input.dispatchEvent(new Event('focus'))
     await vi.waitFor(() => expect(lm.create).toHaveBeenCalledTimes(1))
 
-    expect(lm.create).toHaveBeenCalledWith({
-      expectedInputs: [{ type: 'text', languages: ['es'] }],
-      expectedOutputs: [{ type: 'text', languages: ['es'] }],
-    })
+    expect(lm.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedInputs: [{ type: 'text', languages: ['es'] }],
+        expectedOutputs: [{ type: 'text', languages: ['es'] }],
+      }),
+    )
   })
 
   it('falls back to en when the document language is not one of the models supported languages', async () => {
@@ -147,10 +149,27 @@ describe('QueryShaper session lifecycle', () => {
     input.dispatchEvent(new Event('focus'))
     await vi.waitFor(() => expect(lm.create).toHaveBeenCalledTimes(1))
 
-    expect(lm.create).toHaveBeenCalledWith({
-      expectedInputs: [{ type: 'text', languages: ['en'] }],
-      expectedOutputs: [{ type: 'text', languages: ['en'] }],
-    })
+    expect(lm.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedInputs: [{ type: 'text', languages: ['en'] }],
+        expectedOutputs: [{ type: 'text', languages: ['en'] }],
+      }),
+    )
+  })
+
+  it('primes the shared base session with a generic system instruction', async () => {
+    const lm = mockLanguageModel({ availability: 'available' })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.create).toHaveBeenCalledTimes(1))
+
+    const [createOptions] = lm.create.mock.calls[0] as [{ initialPrompts: [{ role: string; content: string }] }]
+    const [systemPrompt] = createOptions.initialPrompts
+    expect(createOptions.initialPrompts).toHaveLength(1)
+    expect(systemPrompt.role).toBe('system')
+    expect(systemPrompt.content).toContain('correction')
   })
 
   it('does not accumulate duplicate listeners across a disconnect/reconnect cycle', async () => {

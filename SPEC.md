@@ -295,45 +295,57 @@ is dropped and `query-shaper-error` fires with `phase:
 
 1. **First focus** on the Target: call `LanguageModel.availability()`.
    - `unavailable` → do nothing; fully inert, standard input behavior.
-   - `available` → create (or, per ADR-0002, `clone()` from the page's shared
-     base) a session; reuse it for this instance going forward.
+   - `available` → establish this instance's session per the grandfather/
+     father/child hierarchy (ADR-0004): the page-wide shared "grandfather"
+     base session is created once (seeded with a generic, Fields-agnostic
+     system instruction via `initialPrompts`); this instance's "father" is
+     `clone()`d from it and primed once with this instance's Fields/Format
+     description via `append()`. The father is reused for this instance
+     going forward — but never prompted directly; see step 2.
    - `downloadable` → (unless `headless`) show an unobtrusive inline message
      inviting the user to enable client-side search enhancement, with a
      button to trigger the download and a dismiss option. Dismissal is
      remembered in localStorage (origin-scoped) so it doesn't reappear.
    - `downloading` → (unless `headless`) show an inline, buttonless
      informational message (a download is already in progress — there's
-     nothing to trigger or dismiss, just wait) — and proceed to create a
-     session anyway, since `create()` itself waits out an in-progress
+     nothing to trigger or dismiss, just wait) — and proceed to establish
+     the session anyway, since `create()` itself waits out an in-progress
      download rather than requiring a fresh trigger. Once it resolves, the
      message clears and a second `query-shaper-status` event fires with
      `available`, reflecting the real transition.
 
-   Both `availability()` and `create()` are called with the same
-   `expectedInputs`/`expectedOutputs` options (`{ type: "text", languages:
-   [...] }`) — the Prompt API otherwise warns that it can't attest
-   output-safety for an unspecified language, and passing mismatched options
-   to the two calls is explicitly discouraged upstream. The language comes
-   from `document.documentElement.lang` (first subtag, lowercased), falling
-   back to `en` when unset or not currently one of the model's supported
-   languages (`de`, `en`, `es`, `fr`, `ja`).
+   Both `availability()` and the grandfather's `create()` are called with
+   the same `expectedInputs`/`expectedOutputs` options (`{ type: "text",
+   languages: [...] }`) — the Prompt API otherwise warns that it can't
+   attest output-safety for an unspecified language, and passing mismatched
+   options to the two calls is explicitly discouraged upstream. The language
+   comes from `document.documentElement.lang` (first subtag, lowercased),
+   falling back to `en` when unset or not currently one of the model's
+   supported languages (`de`, `en`, `es`, `fr`, `ja`).
 2. **Debounced input** (~400ms pause — a starting point, expected to need
-   empirical tuning against real model latency): build **one** prompt call
-   combining Fields, Format instructions, History (most recent entries up to
-   `max-history`), and the current Search Text. Use `responseConstraint` with
+   empirical tuning against real model latency): if Fields/Format changed
+   imperatively since the father was primed, rebuild it first (destroy the
+   stale one, clone fresh from the grandfather, re-`append()`). Then clone a
+   disposable "child" from the father and build **one** prompt call — now
+   just History (most recent entries up to `max-history`) and the current
+   Search Text, since the generic instruction and Fields/Format both live
+   upstream in the grandfather/father already. Use `responseConstraint` with
    a JSON Schema requiring an array of Suggestion objects, already tagged by
    kind and pre-sorted by the model. No staged/sequential correction-first
    pass — one call, one response, avoiding both the latency and the
-   response-merging complexity a staged pipeline would add.
+   response-merging complexity a staged pipeline would add. The child is
+   `destroy()`ed once the call settles (success, failure, or abort) — it
+   only ever exists for this one query.
 
    The schema alone doesn't reliably get the model to produce more than one
-   Suggestion — the prompt explicitly spells out the per-kind caps ("up to 1
-   correction... up to 2 expansions... up to 3 expressions... as its own
-   separate item") and instructs it never to invent extra properties. The
-   schema itself sets `additionalProperties: false` at every object level,
-   since the model has been observed inventing sibling properties (e.g. a
-   `fields_expanded` next to `fields`) to smuggle in content it didn't fit
-   into the declared shape, which then gets silently dropped.
+   Suggestion — the (now upstream, grandfather-level) instruction explicitly
+   spells out the per-kind caps ("up to 1 correction... up to 2 expansions...
+   up to 3 expressions... as its own separate item") and instructs it never
+   to invent extra properties. The schema itself sets `additionalProperties:
+   false` at every object level, since the model has been observed inventing
+   sibling properties (e.g. a `fields_expanded` next to `fields`) to smuggle
+   in content it didn't fit into the declared shape, which then gets
+   silently dropped.
 
    If the model still returns an Expression with no `fields` at all under a
    tuple-rendering Format (`lucene`/`simple-query-string`/`url-params`/
