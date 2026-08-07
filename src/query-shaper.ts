@@ -17,7 +17,7 @@ export type LanguageModelAvailability = 'unavailable' | 'downloadable' | 'downlo
 export type LanguageModelSession = {
   clone(): Promise<LanguageModelSession>
   destroy(): void
-  prompt(input: string, options?: { responseConstraint?: unknown }): Promise<string>
+  prompt(input: string, options?: { responseConstraint?: unknown; signal?: AbortSignal }): Promise<string>
 }
 
 export type LanguageModelAPI = {
@@ -450,14 +450,29 @@ export class QueryShaper extends HTMLElement {
     }
   }
 
+  #lastRequestedText: string | undefined
+  #abortController: AbortController | undefined
+
   async #generateInner(id: number): Promise<void> {
     if (!this.#session) return
     const searchText = this.target?.value ?? ''
-    if (searchText.trim().length === 0) {
+    const trimmed = searchText.trim()
+    if (trimmed.length === 0) {
+      this.#lastRequestedText = undefined
+      this.#abortController?.abort()
+      this.#abortController = undefined
       if (id !== this.#generationId) return
       this.dispatchEvent(new CustomEvent('query-shaper-suggestions', { detail: { suggestions: [] } }))
       return
     }
+    // A pause that only added/removed leading/trailing whitespace isn't a meaningfully new
+    // query — skip it rather than burning another on-device call and possibly aborting a
+    // perfectly relevant in-flight one for no reason.
+    if (trimmed === this.#lastRequestedText) return
+    this.#lastRequestedText = trimmed
+    this.#abortController?.abort()
+    const controller = new AbortController()
+    this.#abortController = controller
     let history = this.#readHistory()
     let raw: string
     let unknownErrorRetries = 0
@@ -465,6 +480,7 @@ export class QueryShaper extends HTMLElement {
       try {
         raw = await this.#session.prompt(this.#buildPrompt(searchText, history), {
           responseConstraint: buildSuggestionsResponseSchema(this.format === 'sql'),
+          signal: controller.signal,
         })
         break
       } catch (err) {

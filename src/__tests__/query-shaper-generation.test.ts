@@ -15,6 +15,72 @@ describe('QueryShaper generation', () => {
     localStorage.clear()
   })
 
+  it('skips generating again when only leading/trailing whitespace changed', async () => {
+    const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    input.value = 'climate change'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
+
+    input.value = 'climate change '
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+
+    expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1)
+  })
+
+  it('generates again after the field is cleared and the same text is retyped', async () => {
+    const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    input.value = 'climate change'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
+
+    input.value = ''
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+
+    input.value = 'climate change'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(2))
+  })
+
+  it('aborts the previous in-flight request when a genuinely new search text is ready', async () => {
+    const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    input.value = 'first query'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
+    const [, firstOptions] = lm.clonedSession.prompt.mock.calls[0] as [string, { signal: AbortSignal }]
+    expect(firstOptions.signal.aborted).toBe(false)
+
+    input.value = 'second different query'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(2))
+
+    expect(firstOptions.signal.aborted).toBe(true)
+  })
+
   it('ignores a stale generation that resolves after a newer one already completed', async () => {
     vi.useRealTimers()
     const lm = mockLanguageModel({ availability: 'available' })

@@ -355,6 +355,15 @@ is dropped and `query-shaper-error` fires with `phase:
    slower, older call can never overwrite a fresher one's Suggestions,
    regardless of resolution order.
 
+   Two refinements on top of that: a pause that only changed leading/
+   trailing whitespace (the trimmed Search Text is unchanged) never starts
+   a new call at all — pure cursor movement never reaches this point either,
+   since it doesn't fire an `input` event in the first place. When a pause
+   *does* produce a genuinely different Search Text, the previous in-flight
+   call is aborted (`AbortSignal`, which the Prompt API's `prompt()`
+   supports) rather than merely ignored, so the device stops spending
+   compute on a call whose result is about to be discarded anyway.
+
    A Suggestion whose rendered `text` is identical (after trimming) to the
    current Search Text is dropped before rendering — every Suggestion is
    meant to be a better alternate, and echoing the input back verbatim
