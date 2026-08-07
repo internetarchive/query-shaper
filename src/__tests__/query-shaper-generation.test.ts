@@ -728,8 +728,8 @@ describe('QueryShaper generation', () => {
     await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(2))
     await vi.waitFor(() => expect(lm.clonedSession.destroy).toHaveBeenCalledTimes(2))
 
-    // The instance session (father) is only ever cloned once from the base — each
-    // query clones a fresh, disposable child FROM the father, not from the base directly.
+    // The instance session (parent) is only ever cloned once from the base — each
+    // query clones a fresh, disposable child FROM the parent, not from the base directly.
     expect(lm.baseSession.clone).toHaveBeenCalledTimes(1)
     expect(lm.instanceSession.clone).toHaveBeenCalledTimes(2)
     expect(lm.instanceSession.destroy).not.toHaveBeenCalled()

@@ -2,7 +2,7 @@
 status: accepted
 ---
 
-# Grandfather/father/child session hierarchy for Fields/Format priming and per-query isolation
+# Grandparent/parent/child session hierarchy for Fields/Format priming and per-query isolation
 
 [ADR-0002](./0002-shared-base-session-with-per-instance-clones.md) established
 one shared base session, cloned per `<query-shaper>` instance, reused for that
@@ -29,24 +29,24 @@ receiving more `prompt()` turns eventually needs to trim older ones to make
 room. A session that never receives any further turns after being primed is
 never subject to that pressure at all.
 
-- **Grandfather** — the shared base session from ADR-0002, created once per
+- **Grandparent** — the shared base session from ADR-0002, created once per
   page. Now also seeded with a generic, Fields-agnostic system instruction via
   `initialPrompts` at that one `create()` call — the one mechanism ADR-0003
   confirmed genuinely persists (survived 60 padding turns in testing).
-- **Father** — one per instance, `clone()`d from the grandfather on first
+- **Parent** — one per instance, `clone()`d from the grandparent on first
   focus. Primed once with that instance's Fields/Format description via
-  `father.append([{ role: 'user', content: ... }])`. Not `role: 'system'`:
-  `append()` rejects a second system-role message once the grandfather's
+  `parent.append([{ role: 'user', content: ... }])`. Not `role: 'system'`:
+  `append()` rejects a second system-role message once the grandparent's
   `initialPrompts` has already claimed the session's first-message slot.
-  The father is **never itself prompted again** — only ever cloned *from* —
+  The parent is **never itself prompted again** — only ever cloned *from* —
   so ADR-0003's eviction risk never applies to it.
-- **Child** — a fresh, disposable `clone()` of the father, made for exactly
+- **Child** — a fresh, disposable `clone()` of the parent, made for exactly
   one query: `prompt()`ed (internal retries for `QuotaExceededError`/
   `UnknownError` reuse the same child), then `destroy()`ed in a `finally`,
   regardless of outcome.
 
 Every tier uses `clone()`, never an independent `create()`, so ADR-0003's
-idle-sensitive cost never applies beyond the one page-wide grandfather.
+idle-sensitive cost never applies beyond the one page-wide grandparent.
 `clone()` itself measured at 0.1–3.9ms regardless of idle time, as long as
 the ancestor being cloned stays alive.
 
@@ -54,22 +54,22 @@ the ancestor being cloned stays alive.
 
 Tested live against the real on-device model before implementing:
 
-- A clone of a clone correctly inherits *both* the grandfather's
-  `initialPrompts` and the father's `append()`'d content.
+- A clone of a clone correctly inherits *both* the grandparent's
+  `initialPrompts` and the parent's `append()`'d content.
 - Sibling isolation holds: one child was prompted to "learn" a new fact
-  about itself; a second child, cloned from the same father immediately
+  about itself; a second child, cloned from the same parent immediately
   afterward, had no knowledge of it. One child's own conversation never
-  leaks back into the father, or forward into a fresh sibling.
+  leaks back into the parent, or forward into a fresh sibling.
 
 ## Consequences
 
 - Per-query prompts now carry only History + Search Text — the generic
   instruction and Fields/Format both moved upstream, out of the per-query
   payload.
-- `disconnectedCallback` destroys the father, not a query-scoped session —
+- `disconnectedCallback` destroys the parent, not a query-scoped session —
   nothing query-scoped outlives its own call in the first place.
-- Fields/Format changing imperatively invalidates the current father
-  (destroy it, clone fresh from the grandfather, re-`append()`) rather than
+- Fields/Format changing imperatively invalidates the current parent
+  (destroy it, clone fresh from the grandparent, re-`append()`) rather than
   being detected as a difference in per-query prompt text, since that text
   no longer carries Fields/Format at all.
 

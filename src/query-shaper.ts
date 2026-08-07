@@ -789,28 +789,28 @@ export class QueryShaper extends HTMLElement {
         initialPrompts: [{ role: 'system', content: GENERIC_INSTRUCTION }],
       })
     }
-    return this.#buildFather(await sharedBaseSession)
+    return this.#buildParentSession(await sharedBaseSession)
   }
 
   // Fields/Format only vary per instance when set imperatively — but #buildFieldsSection()
   // has no caching of its own, so an attribute change would otherwise be silently ignored
-  // once Fields/Format are primed into the father rather than resent on every query.
+  // once Fields/Format are primed into the parent session rather than resent on every query.
   async #ensureFieldsPrimed(): Promise<void> {
     const currentFieldsContent = this.#buildFieldsSection()
     if (currentFieldsContent === this.#primedFieldsSnapshot) return
     if (!sharedBaseSession) return
     this.#session?.destroy()
-    this.#session = await this.#buildFather(await sharedBaseSession)
+    this.#session = await this.#buildParentSession(await sharedBaseSession)
   }
 
-  async #buildFather(base: LanguageModelSession): Promise<LanguageModelSession> {
+  async #buildParentSession(grandparent: LanguageModelSession): Promise<LanguageModelSession> {
     const fieldsContent = this.#buildFieldsSection()
-    const father = await base.clone()
+    const parentSession = await grandparent.clone()
     if (fieldsContent !== null) {
-      await father.append([{ role: 'user', content: fieldsContent }])
+      await parentSession.append([{ role: 'user', content: fieldsContent }])
     }
     this.#primedFieldsSnapshot = fieldsContent
-    return father
+    return parentSession
   }
 
   #emitStatus(status: LanguageModelAvailability): void {

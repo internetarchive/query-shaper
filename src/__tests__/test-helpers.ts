@@ -17,8 +17,8 @@ export function mockLanguageModel(
   options: { availability?: string; promptResponse?: unknown; promptError?: Error } = {},
 ) {
   const { availability = 'available', promptResponse, promptError } = options
-  // Three tiers: baseSession (shared "grandfather") -> instanceSession (per-instance
-  // "father", primed with Fields/Format via append()) -> clonedSession (disposable
+  // Three tiers: baseSession (shared "grandparent") -> instanceSession (per-instance
+  // "parent", primed with Fields/Format via append()) -> clonedSession (disposable
   // per-query "child", the one actually prompted for a real response).
   const clonedSession = {
     clone: vi.fn(),

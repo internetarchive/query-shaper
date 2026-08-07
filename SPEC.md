@@ -295,12 +295,12 @@ is dropped and `query-shaper-error` fires with `phase:
 
 1. **First focus** on the Target: call `LanguageModel.availability()`.
    - `unavailable` → do nothing; fully inert, standard input behavior.
-   - `available` → establish this instance's session per the grandfather/
-     father/child hierarchy (ADR-0004): the page-wide shared "grandfather"
+   - `available` → establish this instance's session per the grandparent/
+     parent/child hierarchy (ADR-0004): the page-wide shared "grandparent"
      base session is created once (seeded with a generic, Fields-agnostic
-     system instruction via `initialPrompts`); this instance's "father" is
+     system instruction via `initialPrompts`); this instance's "parent" is
      `clone()`d from it and primed once with this instance's Fields/Format
-     description via `append()`. The father is reused for this instance
+     description via `append()`. The parent is reused for this instance
      going forward — but never prompted directly; see step 2.
    - `downloadable` → (unless `headless`) show an unobtrusive inline message
      inviting the user to enable client-side search enhancement, with a
@@ -314,7 +314,7 @@ is dropped and `query-shaper-error` fires with `phase:
      message clears and a second `query-shaper-status` event fires with
      `available`, reflecting the real transition.
 
-   Both `availability()` and the grandfather's `create()` are called with
+   Both `availability()` and the grandparent's `create()` are called with
    the same `expectedInputs`/`expectedOutputs` options (`{ type: "text",
    languages: [...] }`) — the Prompt API otherwise warns that it can't
    attest output-safety for an unspecified language, and passing mismatched
@@ -324,12 +324,12 @@ is dropped and `query-shaper-error` fires with `phase:
    supported languages (`de`, `en`, `es`, `fr`, `ja`).
 2. **Debounced input** (~400ms pause — a starting point, expected to need
    empirical tuning against real model latency): if Fields/Format changed
-   imperatively since the father was primed, rebuild it first (destroy the
-   stale one, clone fresh from the grandfather, re-`append()`). Then clone a
-   disposable "child" from the father and build **one** prompt call — now
+   imperatively since the parent was primed, rebuild it first (destroy the
+   stale one, clone fresh from the grandparent, re-`append()`). Then clone a
+   disposable "child" from the parent and build **one** prompt call — now
    just History (most recent entries up to `max-history`) and the current
    Search Text, since the generic instruction and Fields/Format both live
-   upstream in the grandfather/father already. Use `responseConstraint` with
+   upstream in the grandparent/parent already. Use `responseConstraint` with
    a JSON Schema requiring an array of Suggestion objects, already tagged by
    kind and pre-sorted by the model. No staged/sequential correction-first
    pass — one call, one response, avoiding both the latency and the
@@ -338,7 +338,7 @@ is dropped and `query-shaper-error` fires with `phase:
    only ever exists for this one query.
 
    The schema alone doesn't reliably get the model to produce more than one
-   Suggestion — the (now upstream, grandfather-level) instruction explicitly
+   Suggestion — the (now upstream, grandparent-level) instruction explicitly
    spells out the per-kind caps ("up to 1 correction... up to 2 expansions...
    up to 3 expressions... as its own separate item") and instructs it never
    to invent extra properties. The schema itself sets `additionalProperties:
