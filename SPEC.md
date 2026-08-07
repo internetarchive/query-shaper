@@ -324,6 +324,11 @@ is dropped and `query-shaper-error` fires with `phase:
    only if its id still matches the latest one when it resolves, so a
    slower, older call can never overwrite a fresher one's Suggestions,
    regardless of resolution order.
+
+   A Suggestion whose rendered `text` is identical (after trimming) to the
+   current Search Text is dropped before rendering — every Suggestion is
+   meant to be a better alternate, and echoing the input back verbatim
+   isn't one, regardless of kind.
 3. **Render**: grouped by kind (Correction / Expansion / Expression),
    up to `max-suggestions` total — unless `headless`, in which case only
    `query-shaper-suggestions` fires.

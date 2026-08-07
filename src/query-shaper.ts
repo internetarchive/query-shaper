@@ -453,6 +453,7 @@ export class QueryShaper extends HTMLElement {
       .slice(0, maxSuggestions)
       .map((s) => this.#toSuggestion(s))
       .filter((s): s is Suggestion => s !== null)
+      .filter((s) => s.text.trim() !== searchText.trim())
     if (id !== this.#generationId) return
     this.dispatchEvent(new CustomEvent('query-shaper-suggestions', { detail: { suggestions } }))
   }

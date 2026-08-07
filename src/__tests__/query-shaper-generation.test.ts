@@ -86,6 +86,61 @@ describe('QueryShaper generation', () => {
     ])
   })
 
+  it('excludes a Correction or Expansion identical to the Search Text, keeping the rest', async () => {
+    const lm = mockLanguageModel({
+      promptResponse: {
+        suggestions: [
+          { kind: 'correction', text: 'climate change' },
+          { kind: 'expansion', text: 'climate change' },
+          { kind: 'expansion', text: 'global warming' },
+        ],
+      },
+    })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const suggestionEvents: unknown[] = []
+    shaper.addEventListener('query-shaper-suggestions', (e) => {
+      suggestionEvents.push((e as CustomEvent).detail.suggestions)
+    })
+
+    input.value = 'climate change'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
+
+    expect(suggestionEvents[0]).toEqual([{ kind: 'expansion', text: 'global warming' }])
+  })
+
+  it('excludes an Expression whose rendered text is identical to the Search Text', async () => {
+    const lm = mockLanguageModel({
+      promptResponse: {
+        suggestions: [{ kind: 'expression', fields: [{ value: 'climate change' }] }],
+      },
+    })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+    shaper.setAttribute('fields', '[{"name":"title"}]')
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const suggestionEvents: unknown[] = []
+    shaper.addEventListener('query-shaper-suggestions', (e) => {
+      suggestionEvents.push((e as CustomEvent).detail.suggestions)
+    })
+
+    input.value = 'climate change'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
+
+    expect(suggestionEvents[0]).toEqual([])
+  })
+
   it('skips the model call and clears suggestions when the Target is cleared', async () => {
     const lm = mockLanguageModel({
       promptResponse: { suggestions: [{ kind: 'correction', text: 'climate change' }] },
