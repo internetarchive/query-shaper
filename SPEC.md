@@ -1,7 +1,7 @@
 # Query Shaper — Spec
 
 Synthesizes the design session recorded in `CONTEXT.md` (vocabulary) and
-`docs/adr/` (the two hardest-to-reverse calls) into something implementable.
+`docs/adr/` (the hardest-to-reverse calls) into something implementable.
 
 Everything under **Element API** and **Generation flow** reflects a decision
 actually made during grilling. Exact attribute/event _names_ are a first
