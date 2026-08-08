@@ -507,7 +507,7 @@ export class QueryShaper extends HTMLElement {
     const trimmed = searchText.trim()
     if (trimmed.length === 0) {
       this.#lastRequestedText = undefined
-      this.#abortController?.abort()
+      this.#abortController?.abort('search text cleared')
       this.#abortController = undefined
       if (id !== this.#generationId) return
       this.dispatchEvent(new CustomEvent('query-shaper-suggestions', { detail: { suggestions: [] } }))
@@ -525,7 +525,7 @@ export class QueryShaper extends HTMLElement {
     if (!this.#session) return
     if (this.#abortController) {
       devLog(`${this.#tag()} #${id} aborting a superseded in-flight generation`)
-      this.#abortController.abort()
+      this.#abortController.abort('superseded by a newer generation')
     }
     const controller = new AbortController()
     this.#abortController = controller
