@@ -215,19 +215,17 @@
         the generated SQL into the code block below.
       </p>
       <form>
-        <input id="eot-search" type="search" placeholder="e.g. PDF captures from state.gov that were redirected in 2024" />
+        <input id="eot-search" type="search" placeholder="e.g. PDF captures from state.gov in 2024" />
         <query-shaper
           for="eot-search"
           resource="read_parquet('https://archive.org/download/EndOfTerm2024WebCrawls/EndOfTerm2024WebCrawls.parquet')"
           fields='[
             {"name":"urlkey","description":"SURT-canonicalized URL, sorts by host then path"},
-            {"name":"timestamp","type":"date","description":"capture time, YYYYMMDDHHMMSS"},
+            {"name":"timestamp","type":"date","description":"native timestamp column, query it like any other timestamp"},
             {"name":"original","description":"the captured URL as crawled"},
-            {"name":"mimetype"},
+            {"name":"mimetype","description":"e.g. text/html, image/png, application/pdf"},
             {"name":"statuscode","type":"number","description":"HTTP status code"},
-            {"name":"digest","description":"SHA-1 content digest"},
-            {"name":"redirect","description":"redirect target URL, if any"},
-            {"name":"robotflags"},
+            {"name":"digest","description":"SHA-1 digest, base32-encoded, e.g. PJKOFVMAWHGOZNRP4P53POMP4VUWGB2E"},
             {"name":"length","type":"number","description":"record length in bytes"},
             {"name":"offset","type":"number","description":"byte offset into the WARC file"},
             {"name":"filename","description":"WARC filename holding this capture"}
