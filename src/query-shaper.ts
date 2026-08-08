@@ -65,6 +65,27 @@ const GENERIC_INSTRUCTION =
   'Return each as its own separate item in the suggestions array — never merge multiple kinds into one item, and ' +
   'never invent extra properties beyond the ones described.'
 
+// Dev-only visibility into session lifecycle and generation timing — every call site is
+// guarded by import.meta.env.DEV, a compile-time constant Vite replaces and then
+// tree-shakes away entirely in a production build (verified: none of this, or its call
+// sites, appear in dist/query-shaper.js).
+function devLog(...args: unknown[]): void {
+  if (import.meta.env.DEV) console.log('[query-shaper]', ...args)
+}
+
+async function devTimed<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  if (!import.meta.env.DEV) return fn()
+  const start = performance.now()
+  try {
+    const result = await fn()
+    devLog(`${label} — ${(performance.now() - start).toFixed(0)}ms`)
+    return result
+  } catch (err) {
+    devLog(`${label} — ${(performance.now() - start).toFixed(0)}ms — failed:`, err)
+    throw err
+  }
+}
+
 const SUPPORTED_MODEL_LANGUAGES = ['de', 'en', 'es', 'fr', 'ja']
 
 function detectModelLanguage(): string {
@@ -468,7 +489,11 @@ export class QueryShaper extends HTMLElement {
     try {
       await this.#generateInner(id)
     } catch (error) {
-      if (id !== this.#generationId) return
+      if (id !== this.#generationId) {
+        devLog(`${this.#tag()} #${id} errored after being superseded, suppressing query-shaper-error:`, error)
+        return
+      }
+      devLog(`${this.#tag()} #${id} emitting query-shaper-error:`, error)
       this.dispatchEvent(new CustomEvent('query-shaper-error', { detail: { error, phase: 'generate' } }))
     }
   }
@@ -491,36 +516,48 @@ export class QueryShaper extends HTMLElement {
     // A pause that only added/removed leading/trailing whitespace isn't a meaningfully new
     // query — skip it rather than burning another on-device call and possibly aborting a
     // perfectly relevant in-flight one for no reason.
-    if (trimmed === this.#lastRequestedText) return
+    if (trimmed === this.#lastRequestedText) {
+      devLog(`${this.#tag()} #${id} skipped — trimmed text unchanged`)
+      return
+    }
     this.#lastRequestedText = trimmed
     await this.#ensureFieldsPrimed()
     if (!this.#session) return
-    this.#abortController?.abort()
+    if (this.#abortController) {
+      devLog(`${this.#tag()} #${id} aborting a superseded in-flight generation`)
+      this.#abortController.abort()
+    }
     const controller = new AbortController()
     this.#abortController = controller
     let history = this.#readHistory()
     let raw: string
     let unknownErrorRetries = 0
+    devLog(`${this.#tag()} #${id} generating for "${trimmed}" (${history.length} History entries)`)
     const child = await this.#session.clone()
     try {
       for (;;) {
         try {
-          raw = await child.prompt(this.#buildQueryPrompt(searchText, history), {
-            responseConstraint: buildSuggestionsResponseSchema(this.format === 'sql'),
-            signal: controller.signal,
-          })
+          raw = await devTimed(`${this.#tag()} #${id} prompt()`, () =>
+            child.prompt(this.#buildQueryPrompt(searchText, history), {
+              responseConstraint: buildSuggestionsResponseSchema(this.format === 'sql'),
+              signal: controller.signal,
+            }),
+          )
           break
         } catch (err) {
           const isQuotaExceeded = err instanceof Error && err.name === 'QuotaExceededError'
           if (isQuotaExceeded && history.length > 0) {
+            devLog(`${this.#tag()} #${id} QuotaExceededError — trimming oldest History entry and retrying`)
             history = history.slice(1)
             continue
           }
           const isUnknownError = err instanceof Error && err.name === 'UnknownError'
           if (isUnknownError && unknownErrorRetries < MAX_UNKNOWN_ERROR_RETRIES) {
             unknownErrorRetries += 1
+            devLog(`${this.#tag()} #${id} UnknownError — retry ${unknownErrorRetries}/${MAX_UNKNOWN_ERROR_RETRIES}`)
             continue
           }
+          devLog(`${this.#tag()} #${id} prompt() failed:`, err)
           throw err
         }
       }
@@ -542,7 +579,14 @@ export class QueryShaper extends HTMLElement {
       .map((s) => this.#toSuggestion(s))
       .filter((s): s is Suggestion => s !== null)
       .filter((s) => s.text.trim() !== searchText.trim())
-    if (id !== this.#generationId) return
+    if (id !== this.#generationId) {
+      devLog(`${this.#tag()} #${id} discarded — superseded by a newer generation`)
+      return
+    }
+    devLog(
+      `${this.#tag()} #${id} ${suggestions.length} suggestion(s):`,
+      suggestions.map((s) => s.kind),
+    )
     this.dispatchEvent(new CustomEvent('query-shaper-suggestions', { detail: { suggestions } }))
   }
 
@@ -707,6 +751,7 @@ export class QueryShaper extends HTMLElement {
   accept(suggestion: Suggestion): void {
     const action = this.getAttribute('action') ?? 'fill'
     const searchText = this.target?.value ?? ''
+    devLog(`${this.#tag()} accept (${action}):`, suggestion)
     let url: string | undefined
     if (action === 'opensearch') {
       const template = this.getAttribute('template')
@@ -805,13 +850,20 @@ export class QueryShaper extends HTMLElement {
     return this.#sessionPromise
   }
 
+  #tag(): string {
+    return `[${this.target?.id ?? '?'}]`
+  }
+
   async #ensureSessionInner(): Promise<void> {
     const LM = (globalThis as { LanguageModel?: LanguageModelAPI }).LanguageModel
     if (!LM) {
+      devLog(`${this.#tag()} no LanguageModel API present`)
       this.#emitStatus('unavailable')
       return
     }
-    const availability = await LM.availability(languageModelOptions())
+    const availability = await devTimed(`${this.#tag()} availability()`, () =>
+      LM.availability(languageModelOptions()),
+    )
     this.#emitStatus(availability)
     if (availability === 'available' || availability === 'downloading') {
       this.#session = await this.#createSession(LM)
@@ -826,10 +878,13 @@ export class QueryShaper extends HTMLElement {
 
   async #createSession(LM: LanguageModelAPI): Promise<LanguageModelSession> {
     if (!sharedBaseSession) {
-      sharedBaseSession = LM.create({
-        ...languageModelOptions(),
-        initialPrompts: [{ role: 'system', content: GENERIC_INSTRUCTION }],
-      })
+      devLog('creating shared grandparent session')
+      sharedBaseSession = devTimed('grandparent create()', () =>
+        LM.create({
+          ...languageModelOptions(),
+          initialPrompts: [{ role: 'system', content: GENERIC_INSTRUCTION }],
+        }),
+      )
     }
     return this.#buildParentSession(await sharedBaseSession)
   }
@@ -841,21 +896,25 @@ export class QueryShaper extends HTMLElement {
     const currentFieldsContent = this.#buildFieldsSection()
     if (currentFieldsContent === this.#primedFieldsSnapshot) return
     if (!sharedBaseSession) return
+    devLog(`${this.#tag()} Fields/Format changed — rebuilding parent session`)
     this.#session?.destroy()
     this.#session = await this.#buildParentSession(await sharedBaseSession)
   }
 
   async #buildParentSession(grandparent: LanguageModelSession): Promise<LanguageModelSession> {
     const fieldsContent = this.#buildFieldsSection()
-    const parentSession = await grandparent.clone()
+    const parentSession = await devTimed(`${this.#tag()} clone parent`, () => grandparent.clone())
     if (fieldsContent !== null) {
-      await parentSession.append([{ role: 'user', content: fieldsContent }])
+      await devTimed(`${this.#tag()} append Fields/Format`, () =>
+        parentSession.append([{ role: 'user', content: fieldsContent }]),
+      )
     }
     this.#primedFieldsSnapshot = fieldsContent
     return parentSession
   }
 
   #emitStatus(status: LanguageModelAvailability): void {
+    devLog(`${this.#tag()} status: ${status}`)
     this.dispatchEvent(new CustomEvent('query-shaper-status', { detail: { status } }))
     if (status === 'downloadable') {
       this.#renderDownloadPrompt()

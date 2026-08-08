@@ -31,10 +31,10 @@ built-in AI APIs, query interpretation:
 ## Status
 
 Early development. The design is settled — see `CONTEXT.md` for the
-vocabulary, `docs/adr/` for the two hardest-to-reverse architectural calls,
-and `SPEC.md` for the full element API and generation flow — but the
-component itself is just scaffolding right now; the actual behavior tracked
-in `SPEC.md` is still being implemented.
+vocabulary, `docs/adr/` for the hardest-to-reverse architectural calls, and
+`SPEC.md` for the full element API and generation flow — but the component
+itself is just scaffolding right now; the actual behavior tracked in
+`SPEC.md` is still being implemented.
 
 ## Development
 
@@ -49,6 +49,13 @@ npm run typecheck
 npm run lint
 npm run build      # emits the npm package + CDN bundle to ./dist
 ```
+
+Session lifecycle and generation timing are logged to the console
+(prefixed `[query-shaper]`) whenever the component is loaded via `npm run
+dev` — status transitions, session/parent establishment timing, per-query
+`prompt()` timing, retries, aborts, and final Suggestion counts. This is
+dev-only: it's gated on `import.meta.env.DEV`, which Vite replaces and
+tree-shakes away entirely in `npm run build` — none of it ships in `dist/`.
 
 ## License
 
