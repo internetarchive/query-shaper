@@ -201,6 +201,45 @@
       <query-shaper id="generic-custom-shaper" for="generic-custom" fields='[{"name":"category"},{"name":"price","type":"number"}]'></query-shaper>
     </section>
 
+    <section>
+      <h2>9. DuckDB SQL over a remote Parquet file</h2>
+      <p>
+        Format <code>sql</code> — the model authors a complete DuckDB SQL
+        statement directly, since field/value tuples can't express the
+        <code>ORDER BY</code>/<code>LIMIT</code>/aggregation a question like
+        this often needs. A single file Resource — the
+        <a href="https://archive.org/details/EndOfTerm2024WebCrawls">End of Term 2024 Web Crawls</a>
+        CDX index, queried straight over HTTP via <code>read_parquet()</code>,
+        no local download — declared with the bare-array Fields form plus a
+        <code>resource</code> attribute. Action <code>output</code> writes
+        the generated SQL into the code block below.
+      </p>
+      <form>
+        <input id="eot-search" type="search" placeholder="e.g. PDF captures from state.gov that were redirected in 2024" />
+        <query-shaper
+          for="eot-search"
+          resource="read_parquet('https://archive.org/download/EndOfTerm2024WebCrawls/EndOfTerm2024WebCrawls.parquet')"
+          fields='[
+            {"name":"urlkey","description":"SURT-canonicalized URL, sorts by host then path"},
+            {"name":"timestamp","type":"date","description":"capture time, YYYYMMDDHHMMSS"},
+            {"name":"original","description":"the captured URL as crawled"},
+            {"name":"mimetype"},
+            {"name":"statuscode","type":"number","description":"HTTP status code"},
+            {"name":"digest","description":"SHA-1 content digest"},
+            {"name":"redirect","description":"redirect target URL, if any"},
+            {"name":"robotflags"},
+            {"name":"length","type":"number","description":"record length in bytes"},
+            {"name":"offset","type":"number","description":"byte offset into the WARC file"},
+            {"name":"filename","description":"WARC filename holding this capture"}
+          ]'
+          format="sql"
+          action="output"
+          destination="#eot-output"
+        ></query-shaper>
+      </form>
+      <pre><code id="eot-output"></code></pre>
+    </section>
+
     <script type="module" src="../src/index.ts"></script>
     <script type="module">
       customElements.whenDefined('query-shaper').then(() => {

@@ -433,10 +433,11 @@ is dropped and `query-shaper-error` fires with `phase:
 
 A single demo page with multiple `<query-shaper>` instances. `Accept`
 produces something directly usable against that instance's real backend —
-navigating to a results page for four of them, and displaying/linking to a
+navigating to a results page for four of them, displaying/linking to a
 constructed REST URL for the fifth (Ask Me Twice, a JSON API with no results
-page of its own and no CORS support) — no inline result-fetching in any
-case.
+page of its own and no CORS support), and writing a generated SQL statement
+into a code block for the sixth (DuckDB over a remote Parquet file) — no
+inline result-fetching/execution in any case.
 
 1. **Internet Archive** (`archive.org/advancedsearch.php`) — Fields:
    `mediatype`, `year`, `creator`, `subject`, `language`; Format: `lucene`
@@ -477,6 +478,15 @@ case.
    `destination`, which the demo page's own script turns into a clickable
    link (the URL is both the link text and its `href` — one element, not a
    separate link alongside a plain-text display) on `query-shaper-accept`.
+6. **DuckDB over a remote Parquet file** (the Internet Archive's
+   [End of Term 2024 Web Crawls](https://archive.org/details/EndOfTerm2024WebCrawls)
+   CDX index, queried straight over HTTP — no local download) — a single
+   file Resource declared via the bare-array-Fields-plus-`resource`
+   attribute shape, `resource="read_parquet('https://archive.org/download/
+   EndOfTerm2024WebCrawls/EndOfTerm2024WebCrawls.parquet')"`. Format: `sql`;
+   Action: `output` with `destination` pointing straight at a `<code>`
+   element — no accept-handling script needed, since `output` already sets
+   `.textContent` on a non-input match.
 
 ## Implementation defaults (not separately grilled — flagging, not asking)
 
