@@ -1,6 +1,6 @@
 export type FieldDescriptor = {
   name: string
-  type?: 'text' | 'number' | 'date'
+  type?: 'text' | 'number' | 'date' | 'boolean'
   aliases?: string[]
   description?: string
 }
