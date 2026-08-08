@@ -583,10 +583,7 @@ export class QueryShaper extends HTMLElement {
       devLog(`${this.#tag()} #${id} discarded — superseded by a newer generation`)
       return
     }
-    devLog(
-      `${this.#tag()} #${id} ${suggestions.length} suggestion(s):`,
-      suggestions.map((s) => s.kind),
-    )
+    devLog(`${this.#tag()} #${id} ${suggestions.length} suggestion(s):`, suggestions)
     this.dispatchEvent(new CustomEvent('query-shaper-suggestions', { detail: { suggestions } }))
   }
 
@@ -878,7 +875,7 @@ export class QueryShaper extends HTMLElement {
 
   async #createSession(LM: LanguageModelAPI): Promise<LanguageModelSession> {
     if (!sharedBaseSession) {
-      devLog('creating shared grandparent session')
+      devLog('creating shared grandparent session with system prompt:', GENERIC_INSTRUCTION)
       sharedBaseSession = devTimed('grandparent create()', () =>
         LM.create({
           ...languageModelOptions(),
@@ -905,6 +902,7 @@ export class QueryShaper extends HTMLElement {
     const fieldsContent = this.#buildFieldsSection()
     const parentSession = await devTimed(`${this.#tag()} clone parent`, () => grandparent.clone())
     if (fieldsContent !== null) {
+      devLog(`${this.#tag()} appending Fields/Format message:`, fieldsContent)
       await devTimed(`${this.#tag()} append Fields/Format`, () =>
         parentSession.append([{ role: 'user', content: fieldsContent }]),
       )
