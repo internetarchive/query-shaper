@@ -17,12 +17,22 @@ _Avoid_: Bound input, host input, search field
 
 **Suggestion**:
 A candidate improvement to the Search Text offered to the user. Every Correction,
-Expansion, and Expression is a kind of Suggestion.
+Completion, Expansion, and Expression is a kind of Suggestion.
 _Avoid_: Recommendation, candidate
 
 **Correction**:
 A Suggestion that fixes a likely typo or misspelling in the Search Text.
 _Avoid_: Typo fix, spell check
+
+**Completion**:
+A Suggestion that finishes the Search Text when it looks like an unfinished
+word or phrase — the same intent, just completed, not corrected or
+broadened (e.g. `new y` → `new york`). Distinct from Expansion, which
+assumes the Search Text is already a complete thought and adds related
+terms around it, not more letters to the same one; the test is whether the
+Search Text reads as truncated mid-word/mid-phrase (Completion) or as a
+finished thought that could simply use company (Expansion).
+_Avoid_: Autocomplete, prefix match, suggestion
 
 **Expansion**:
 A Suggestion that broadens the Search Text with related terms, synonyms, or

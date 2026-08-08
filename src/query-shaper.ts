@@ -28,11 +28,13 @@ export type LanguageModelAPI = {
 
 export type RawSuggestion =
   | { kind: 'correction'; text: string }
+  | { kind: 'completion'; text: string }
   | { kind: 'expansion'; text: string }
   | { kind: 'expression'; fields?: FieldValue[]; text?: string; resource?: string }
 
 export type Suggestion =
   | { kind: 'correction'; text: string }
+  | { kind: 'completion'; text: string }
   | { kind: 'expansion'; text: string }
   | { kind: 'expression'; text: string; fields?: FieldValue[]; resource?: string }
 
@@ -49,6 +51,7 @@ const MAX_UNKNOWN_ERROR_RETRIES = 2
 
 const KIND_CONFIG = [
   { kind: 'correction', defaultCap: 1 },
+  { kind: 'completion', defaultCap: 2 },
   { kind: 'expansion', defaultCap: 2 },
   { kind: 'expression', defaultCap: 3 },
 ] as const
@@ -60,10 +63,13 @@ const DEFAULT_KIND_CAPS: Record<string, number> = Object.fromEntries(
 
 const GENERIC_INSTRUCTION =
   'Suggest improvements to the search text given in each prompt: up to 1 correction (only if there is a likely ' +
-  'typo or misspelling), up to 2 expansions (related terms, synonyms, or alternate phrasings), and — if available ' +
-  'fields are described for you — up to 3 expressions (fielded/boolean reformulations using those fields). ' +
-  'Return each as its own separate item in the suggestions array — never merge multiple kinds into one item, and ' +
-  'never invent extra properties beyond the ones described.'
+  'typo or misspelling), up to 2 completions (only if the search text looks like an unfinished word or phrase — ' +
+  'each one a distinct, plausible way to finish it, e.g. "new y" -> "new york", not a broader or related term, ' +
+  'just the same one, finished), up to 2 expansions (related terms, synonyms, or alternate ' +
+  'phrasings for search text that is already a complete thought), and — if available fields are described for ' +
+  'you — up to 3 expressions (fielded/boolean reformulations using those fields). Return each as its own ' +
+  'separate item in the suggestions array — never merge multiple kinds into one item, and never invent extra ' +
+  'properties beyond the ones described.'
 
 // Dev-only visibility into session lifecycle and generation timing — every call site is
 // guarded by import.meta.env.DEV, a compile-time constant Vite replaces and then
@@ -183,16 +189,19 @@ function buildSuggestionsResponseSchema(isSql: boolean) {
           properties: {
             kind: {
               type: 'string',
-              enum: ['correction', 'expansion', 'expression'],
+              enum: ['correction', 'completion', 'expansion', 'expression'],
               description:
                 'correction: fixes a likely typo or misspelling in the Search Text, keeping its meaning intact. ' +
-                'expansion: broadens the Search Text with related terms, synonyms, or alternate phrasings. ' +
+                'completion: the Search Text looks like an unfinished word or phrase — a distinct, plausible way ' +
+                'to finish it (e.g. "new y" -> "new york"), the same thing, not a broader or related one. ' +
+                'expansion: broadens the Search Text with related terms, synonyms, or alternate phrasings, ' +
+                'for text that already reads as a complete thought. ' +
                 'expression: reformulates the Search Text as a fielded and/or boolean query using the Available Fields below.',
             },
             text: {
               type: 'string',
               description:
-                'For correction/expansion: the corrected or broadened search text, in the same language and style as the input. ' +
+                'For correction/completion/expansion: the corrected, completed, or broadened search text, in the same language and style as the input. ' +
                 'For expression: the fully rendered query text.',
             },
             resource: {

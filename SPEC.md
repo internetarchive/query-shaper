@@ -36,8 +36,8 @@ by Resource name, each value its own array of field descriptors (e.g.
 `{"books": [{"name":"title"}, {"name":"year"}], "categories": [{"name":"id"}, {"name":"name"}]}`).
 There's no `"default"`/`"_"` wrapper for the single-Resource case — the bare
 array stays the default, un-nested form. The `.fields` property always wins
-when both are set. Absent entirely → only Correction and Expansion
-suggestions are generated; no Expression.
+when both are set. Absent entirely → only Correction, Completion, and
+Expansion suggestions are generated; no Expression.
 
 **`resource`** (attribute, optional): the table, file, table-valued
 expression (e.g. `read_csv('data.csv')`), or REST API endpoint path that a
@@ -138,8 +138,9 @@ downloadable-status message uses.
 
 **`max-suggestions`** (attribute): global cap on total suggestions shown
 across all kinds combined. Sensible built-in per-kind defaults apply
-underneath (e.g. up to 3 Expression / 2 Expansion / 1 Correction); this
-attribute only trims the total, it doesn't expose per-kind knobs yet.
+underneath (e.g. up to 3 Expression / 2 Expansion / 2 Completion / 1
+Correction); this attribute only trims the total, it doesn't expose
+per-kind knobs yet.
 
 **`max-history`** (attribute): cap on stored History entries, and on how many
 are fed back into generation as context. `0` disables History — turns off
@@ -203,6 +204,7 @@ suggestion, action }`
 ```ts
 type Suggestion =
   | { kind: "correction"; text: string }
+  | { kind: "completion"; text: string }
   | { kind: "expansion"; text: string }
   | {
       kind: "expression";
@@ -359,9 +361,9 @@ is dropped and `query-shaper-error` fires with `phase:
 
    The schema alone doesn't reliably get the model to produce more than one
    Suggestion — the (now upstream, grandparent-level) instruction explicitly
-   spells out the per-kind caps ("up to 1 correction... up to 2 expansions...
-   up to 3 expressions... as its own separate item") and instructs it never
-   to invent extra properties. The schema itself sets `additionalProperties:
+   spells out the per-kind caps ("up to 1 correction... up to 2
+   completions... up to 2 expansions... up to 3 expressions... as its own
+   separate item") and instructs it never to invent extra properties. The schema itself sets `additionalProperties:
    false` at every object level, since the model has been observed inventing
    sibling properties (e.g. a `fields_expanded` next to `fields`) to smuggle
    in content it didn't fit into the declared shape, which then gets
@@ -400,9 +402,9 @@ is dropped and `query-shaper-error` fires with `phase:
    current Search Text is dropped before rendering — every Suggestion is
    meant to be a better alternate, and echoing the input back verbatim
    isn't one, regardless of kind.
-3. **Render**: grouped by kind (Correction / Expansion / Expression),
-   up to `max-suggestions` total — unless `headless`, in which case only
-   `query-shaper-suggestions` fires.
+3. **Render**: grouped by kind (Correction / Completion / Expansion /
+   Expression), up to `max-suggestions` total — unless `headless`, in which
+   case only `query-shaper-suggestions` fires.
 4. **Accept**: apply `action` (fill the Target / submit its form / navigate
    via the `opensearch` template / fill the Target and also write to
    `destination` / do nothing beyond the event below); emit
@@ -453,8 +455,9 @@ case.
    in a path segment, percent-encoded — OpenSearch templates aren't limited
    to query strings).
 4. **A few generic plain HTML search forms**, each demonstrating one Fields
-   configuration mode: no Fields declared (Correction/Expansion-only
-   fallback), a free-form text description, an inline JSON schema, and a
+   configuration mode: no Fields declared (Correction/Completion/
+   Expansion-only fallback), a free-form text description, an inline JSON
+   schema, and a
    custom `.format` render function.
 5. **Ask Me Twice** (`wayback-api.archive.org/services/amt-api`, archive.org's
    internal AI-response-tracking API) — confirmed live, GET-only. Its data

@@ -673,6 +673,9 @@ describe('QueryShaper generation', () => {
         suggestions: [
           { kind: 'correction', text: 'c1' },
           { kind: 'correction', text: 'c2' },
+          { kind: 'completion', text: 'p1' },
+          { kind: 'completion', text: 'p2' },
+          { kind: 'completion', text: 'p3' },
           { kind: 'expression', fields: [{ field: 'title', value: 's1' }] },
           { kind: 'expansion', text: 'e1' },
           { kind: 'expression', fields: [{ field: 'title', value: 's2' }] },
@@ -703,9 +706,35 @@ describe('QueryShaper generation', () => {
     const suggestions = suggestionEvents[0] as Array<{ kind: string }>
     const countByKind = (kind: string) => suggestions.filter((s) => s.kind === kind).length
     expect(countByKind('correction')).toBe(1)
+    expect(countByKind('completion')).toBe(2)
     expect(countByKind('expansion')).toBe(2)
     expect(countByKind('expression')).toBe(3)
-    expect(suggestions).toHaveLength(6)
+    expect(suggestions).toHaveLength(8)
+  })
+
+  it('passes a completion suggestion through unchanged, like correction and expansion', async () => {
+    const lm = mockLanguageModel({
+      promptResponse: {
+        suggestions: [{ kind: 'completion', text: 'new york' }],
+      },
+    })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const suggestionEvents: unknown[] = []
+    shaper.addEventListener('query-shaper-suggestions', (e) => {
+      suggestionEvents.push((e as CustomEvent).detail.suggestions)
+    })
+
+    input.value = 'new y'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
+
+    expect(suggestionEvents[0]).toEqual([{ kind: 'completion', text: 'new york' }])
   })
 
   it('clones a fresh child per query and destroys it after use, reusing the same primed instance session', async () => {

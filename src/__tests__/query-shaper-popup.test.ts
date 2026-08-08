@@ -103,6 +103,7 @@ describe('QueryShaper popup', () => {
           suggestions: [
             { kind: 'expansion', text: 'global warming' },
             { kind: 'correction', text: 'climate change' },
+            { kind: 'completion', text: 'new york' },
             { kind: 'expression', text: 'title:climate', fields: [] },
           ],
         },
@@ -110,10 +111,11 @@ describe('QueryShaper popup', () => {
     )
 
     const groups = shaper.shadowRoot?.querySelectorAll('[part="option-group"]')
-    expect(groups).toHaveLength(3)
+    expect(groups).toHaveLength(4)
     expect(groups?.[0]?.getAttribute('data-kind')).toBe('correction')
-    expect(groups?.[1]?.getAttribute('data-kind')).toBe('expansion')
-    expect(groups?.[2]?.getAttribute('data-kind')).toBe('expression')
+    expect(groups?.[1]?.getAttribute('data-kind')).toBe('completion')
+    expect(groups?.[2]?.getAttribute('data-kind')).toBe('expansion')
+    expect(groups?.[3]?.getAttribute('data-kind')).toBe('expression')
     expect(groups?.[0]?.querySelector('[role="option"]')?.textContent).toBe('climate change')
   })
 
