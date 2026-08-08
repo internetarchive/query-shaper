@@ -827,8 +827,14 @@ describe('QueryShaper generation', () => {
     expect(message.content).toContain('url-params')
   })
 
-  it('includes prior History entries in the prompt sent to the model', async () => {
-    localStorage.setItem('query-shaper:history:search', JSON.stringify(['old search one', 'old search two']))
+  it('includes prior History entries, their kind, and originating Search Text in the prompt sent to the model', async () => {
+    localStorage.setItem(
+      'query-shaper:history:search',
+      JSON.stringify([
+        { searchText: 'climat chnge', suggestion: 'climate change', kind: 'correction', timestamp: 1 },
+        { searchText: 'docs about ai', suggestion: 'documents about artificial intelligence', kind: 'expansion', timestamp: 2 },
+      ]),
+    )
     const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const { input } = mount()
@@ -842,14 +848,23 @@ describe('QueryShaper generation', () => {
     await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
 
     const [promptText] = lm.clonedSession.prompt.mock.calls[0] as [string, unknown]
-    expect(promptText).toContain('old search one')
-    expect(promptText).toContain('old search two')
+    expect(promptText).toContain('climat chnge')
+    expect(promptText).toContain('correction')
+    expect(promptText).toContain('climate change')
+    expect(promptText).toContain('docs about ai')
+    expect(promptText).toContain('expansion')
+    expect(promptText).toContain('documents about artificial intelligence')
   })
 
   it('only feeds up to max-history entries into the prompt, even if more are stored', async () => {
     localStorage.setItem(
       'query-shaper:history:search',
-      JSON.stringify(['search one', 'search two', 'search three', 'search four']),
+      JSON.stringify([
+        { searchText: 'search one', suggestion: 'result one', kind: 'correction', timestamp: 1 },
+        { searchText: 'search two', suggestion: 'result two', kind: 'correction', timestamp: 2 },
+        { searchText: 'search three', suggestion: 'result three', kind: 'correction', timestamp: 3 },
+        { searchText: 'search four', suggestion: 'result four', kind: 'correction', timestamp: 4 },
+      ]),
     )
     const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
@@ -978,7 +993,13 @@ describe('QueryShaper generation', () => {
   })
 
   it('trims the oldest History entry and retries on context overflow', async () => {
-    localStorage.setItem('query-shaper:history:search', JSON.stringify(['old search one', 'old search two']))
+    localStorage.setItem(
+      'query-shaper:history:search',
+      JSON.stringify([
+        { searchText: 'old search one', suggestion: 'result one', kind: 'correction', timestamp: 1 },
+        { searchText: 'old search two', suggestion: 'result two', kind: 'correction', timestamp: 2 },
+      ]),
+    )
     const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const quotaError = Object.assign(new Error('context window exceeded'), { name: 'QuotaExceededError' })

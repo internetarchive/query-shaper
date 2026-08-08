@@ -151,6 +151,17 @@ partition key for History. Defaults to the Target's `id` (always available,
 since `for` requires one) — set this only when multiple instances should
 deliberately _share_ one History.
 
+Each stored entry is `{ searchText, suggestion, kind, timestamp }` — the
+*original* Search Text, the Suggestion text that was Accepted for it, that
+Suggestion's `kind`, and a `timestamp` (epoch ms) kept for debugging only,
+never fed into a prompt. For a plain form submit with no Suggestion
+involved, `searchText` and `suggestion` are the same value and `kind` is
+`"submit"`. Storing the pairing, not just the final text, is what makes
+History function as few-shot context rather than a flat log: the model can
+see both what the user meant (the original text) and what kind of answer,
+in what shape, has worked for them recently — not merely a list of past
+queries with no signal about which parts of them were actually useful.
+
 Reads are served from an in-memory cache, primed once from localStorage on
 first access rather than on every generation call — that's the hot path,
 running on every debounced query, and doesn't need to touch storage that

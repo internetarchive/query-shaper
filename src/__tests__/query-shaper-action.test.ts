@@ -38,12 +38,15 @@ describe('QueryShaper Action', () => {
     const { shaper, input } = mount()
     shaper.setAttribute('action', 'submit')
     // deliberately no <form> ancestor for the Target
+    input.value = 'climat chnge'
 
     shaper.accept({ kind: 'correction', text: 'climate change' })
 
     expect(input.value).toBe('climate change')
     const stored = JSON.parse(localStorage.getItem('query-shaper:history:search') ?? '[]')
-    expect(stored).toEqual(['climate change'])
+    expect(stored).toEqual([
+      { searchText: 'climat chnge', suggestion: 'climate change', kind: 'correction', timestamp: expect.any(Number) },
+    ])
   })
 
   it('computes the OpenSearch URL from the template when action is opensearch', () => {
@@ -83,6 +86,7 @@ describe('QueryShaper Action', () => {
   it('does not touch the Target when action is none, but still emits accept and records History', () => {
     const { shaper, input } = mount()
     shaper.setAttribute('action', 'none')
+    input.value = 'climat chnge'
 
     let acceptDetail: unknown
     shaper.addEventListener('query-shaper-accept', (e) => {
@@ -91,10 +95,12 @@ describe('QueryShaper Action', () => {
 
     shaper.accept({ kind: 'correction', text: 'climate change' })
 
-    expect(input.value).toBe('')
+    expect(input.value).toBe('climat chnge')
     expect(acceptDetail).toEqual({ suggestion: { kind: 'correction', text: 'climate change' }, action: 'none', url: undefined })
     const stored = JSON.parse(localStorage.getItem('query-shaper:history:search') ?? '[]')
-    expect(stored).toEqual(['climate change'])
+    expect(stored).toEqual([
+      { searchText: 'climat chnge', suggestion: 'climate change', kind: 'correction', timestamp: expect.any(Number) },
+    ])
   })
 
   it('fills the Target and writes to a textarea destination via .value', () => {

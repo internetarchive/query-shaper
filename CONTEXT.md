@@ -91,10 +91,15 @@ with its query string and fragment stripped.
 _Avoid_: Root, origin, endpoint base
 
 **History**:
-A bounded, recycling record of prior finalized queries — Search Text that was
-submitted, and/or Suggestions that were Accepted — persisted in local storage
-and fed back to the model as extra context for future Suggestions. Capped by a
-configurable size; a cap of zero disables History entirely.
+A bounded, recycling record of prior finalized queries, persisted in local
+storage and fed back to the model as few-shot context for future
+Suggestions. Each entry pairs the *original* Search Text with the Suggestion
+that was Accepted for it (or, for a plain form submit with no Suggestion
+involved, the submitted text against itself) and that Suggestion's kind —
+not just the final text alone, since the pairing is what lets the model
+infer both intent (what the user was after) and precedent (what kind of
+Suggestion, and what shape of answer, has worked for them before). Capped
+by a configurable size; a cap of zero disables History entirely.
 _Avoid_: Query history, prior queries, search history
 
 **Headless**:

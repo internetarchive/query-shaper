@@ -36,6 +36,13 @@ export type Suggestion =
   | { kind: 'expansion'; text: string }
   | { kind: 'expression'; text: string; fields?: FieldValue[]; resource?: string }
 
+export type HistoryEntry = {
+  searchText: string
+  suggestion: string
+  kind: Suggestion['kind'] | 'submit'
+  timestamp: number
+}
+
 const DEBOUNCE_MS = 400
 const DOWNLOAD_PROMPT_DISMISSED_KEY = 'query-shaper:download-prompt-dismissed'
 const MAX_UNKNOWN_ERROR_RETRIES = 2
@@ -435,7 +442,15 @@ export class QueryShaper extends HTMLElement {
 
   #onDocumentSubmit = (e: Event): void => {
     if (this.target && e.target === this.target.form) {
-      this.#recordHistory(this.target.value)
+      const pending = this.#pendingHistoryContext
+      this.#pendingHistoryContext = undefined
+      if (pending) {
+        this.#recordHistory(pending.searchText, this.target.value, pending.kind)
+      } else {
+        // A plain, accept-independent submit — the user typed and submitted directly,
+        // with no distinct "original text" vs "accepted suggestion" to tell apart.
+        this.#recordHistory(this.target.value, this.target.value, 'submit')
+      }
     }
   }
 
@@ -531,10 +546,14 @@ export class QueryShaper extends HTMLElement {
     this.dispatchEvent(new CustomEvent('query-shaper-suggestions', { detail: { suggestions } }))
   }
 
-  #buildQueryPrompt(searchText: string, history: string[]): string {
+  #buildQueryPrompt(searchText: string, history: HistoryEntry[]): string {
     const lines = []
     if (history.length > 0) {
-      lines.push(`History: ${history.join(', ')}`)
+      // Few-shot context: what the user typed before, and which kind of suggestion they
+      // actually accepted for it — a clue to their intent, and to what style/kind of
+      // suggestion has worked for them recently.
+      lines.push('History (prior accepted suggestions, oldest first):')
+      lines.push(...history.map((h) => `- "${h.searchText}" -> ${h.kind}: "${h.suggestion}"`))
     }
     lines.push(`Search text: ${searchText}`)
     return lines.join('\n')
@@ -683,8 +702,11 @@ export class QueryShaper extends HTMLElement {
     return fields.map((f, i) => (i === 0 || !f.operator ? token(f) : `${f.operator} ${token(f)}`)).join(' ')
   }
 
+  #pendingHistoryContext: { searchText: string; kind: HistoryEntry['kind'] } | undefined
+
   accept(suggestion: Suggestion): void {
     const action = this.getAttribute('action') ?? 'fill'
+    const searchText = this.target?.value ?? ''
     let url: string | undefined
     if (action === 'opensearch') {
       const template = this.getAttribute('template')
@@ -697,6 +719,11 @@ export class QueryShaper extends HTMLElement {
     } else {
       if (this.target) this.target.value = suggestion.text
       if (action === 'submit') {
+        if (this.target?.form) {
+          // Consumed by #onDocumentSubmit, which requestSubmit() fires synchronously
+          // below — that's the only place with access to what actually got submitted.
+          this.#pendingHistoryContext = { searchText, kind: suggestion.kind }
+        }
         this.target?.form?.requestSubmit()
       } else if (action === 'output') {
         this.#writeToDestination(suggestion.text)
@@ -706,7 +733,7 @@ export class QueryShaper extends HTMLElement {
     // A native form submit records History itself (see #onDocumentSubmit), avoiding a
     // double-count — but only if there's actually a form to fire that submit event.
     if (action !== 'submit' || !this.target?.form) {
-      this.#recordHistory(suggestion.text)
+      this.#recordHistory(searchText, suggestion.text, suggestion.kind)
     }
   }
 
@@ -730,24 +757,24 @@ export class QueryShaper extends HTMLElement {
     return Number(this.getAttribute('max-history') ?? 10)
   }
 
-  #historyCache: string[] | undefined
+  #historyCache: HistoryEntry[] | undefined
 
   // Read on every debounced generation call — the hot path — so it's served from an
   // in-memory cache, primed once from localStorage on first access rather than on every
   // call. Writes (rare: only on Accept/submit) stay immediate below, keeping the cache
   // in sync without ever deferring persistence.
-  #readHistory(): string[] {
+  #readHistory(): HistoryEntry[] {
     const max = this.#maxHistory()
     if (max <= 0) return []
     if (this.#historyCache === undefined) {
       const raw = localStorage.getItem(this.#historyKey())
-      const entries: string[] = raw ? JSON.parse(raw) : []
+      const entries: HistoryEntry[] = raw ? JSON.parse(raw) : []
       this.#historyCache = entries.slice(-max)
     }
     return this.#historyCache
   }
 
-  #recordHistory(text: string): void {
+  #recordHistory(searchText: string, suggestion: string, kind: HistoryEntry['kind']): void {
     const key = this.#historyKey()
     const max = this.#maxHistory()
     if (max <= 0) {
@@ -759,8 +786,8 @@ export class QueryShaper extends HTMLElement {
     // instance sharing this history-key (see the history-key attribute) is merged
     // with, not silently overwritten by, a stale in-memory copy.
     const raw = localStorage.getItem(key)
-    const entries: string[] = raw ? JSON.parse(raw) : []
-    entries.push(text)
+    const entries: HistoryEntry[] = raw ? JSON.parse(raw) : []
+    entries.push({ searchText, suggestion, kind, timestamp: Date.now() })
     const trimmed = entries.slice(-max)
     localStorage.setItem(key, JSON.stringify(trimmed))
     this.#historyCache = trimmed
