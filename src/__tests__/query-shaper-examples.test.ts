@@ -80,6 +80,23 @@ describe('QueryShaper Examples', () => {
     expect(message.content).toContain('"cheap electronics"')
   })
 
+  it('escapes a quote already inside a suggestion instead of nesting it unescaped', async () => {
+    const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+    shaper.setAttribute('fields', '[{"name":"subject"}]')
+    shaper.setAttribute(
+      'examples',
+      '[{"input":"climate docs","suggestions":["subject:\\"climate change\\""]}]',
+    )
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.instanceSession.append).toHaveBeenCalledTimes(1))
+
+    const [[message]] = lm.instanceSession.append.mock.calls[0] as [[{ content: string }]]
+    expect(message.content).toContain('"subject:\\"climate change\\""')
+  })
+
   it('rebuilds the primed instance session when Examples changes imperatively', async () => {
     const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm

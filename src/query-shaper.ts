@@ -543,8 +543,12 @@ export class QueryShaper extends HTMLElement {
       if (typeof examples === 'string') {
         lines.push(examples)
       } else {
+        // Escape quotes already inside input/suggestion text before wrapping in our own —
+        // a suggestion like `subject:"climate change"` would otherwise nest unescaped
+        // quotes inside the wrapping quotes, ambiguous for the model to read back.
+        const quote = (s: string) => `"${s.replace(/"/g, '\\"')}"`
         lines.push(
-          ...examples.map((e) => `- "${e.input}" -> ${e.suggestions.map((s) => `"${s}"`).join(', ')}`),
+          ...examples.map((e) => `- ${quote(e.input)} -> ${e.suggestions.map(quote).join(', ')}`),
         )
       }
     }
