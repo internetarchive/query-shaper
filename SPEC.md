@@ -52,6 +52,15 @@ of relevant, correctly-written examples measurably steadies this, without
 touching the response schema — so the schema-simplicity latency win
 (see below) is unaffected.
 
+**`notes`** (attribute or `.notes` property, optional): free-form prose
+primed alongside Fields/Examples, one time, into the same parent-session
+message. For domain-specific guidance that doesn't fit the input/Suggestion
+pair shape `examples` wants — a business rule, a unit convention, a
+disambiguation hint — without editing any code. Complementary to
+`examples`, not a replacement for it: `examples` teaches by demonstration
+(concrete syntax), `notes` teaches by instruction (prose); using both
+together is expected for a backend with real quirks.
+
 **`base`** (attribute, optional): the root URL that `format="url-params"`
 optionally composes a full URL onto instead of rendering a bare query
 string (see the `url-params` entry below). Accepts a relative path, an

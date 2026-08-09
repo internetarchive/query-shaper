@@ -223,6 +223,19 @@ export class QueryShaper extends HTMLElement {
     this.#hasExamplesOverride = true
   }
 
+  #notesOverride: string | undefined
+  #hasNotesOverride = false
+
+  get notes(): string | undefined {
+    if (this.#hasNotesOverride) return this.#notesOverride
+    return this.getAttribute('notes') ?? undefined
+  }
+
+  set notes(value: string | undefined) {
+    this.#notesOverride = value
+    this.#hasNotesOverride = true
+  }
+
   #formatOverride: Format | undefined
   #hasFormatOverride = false
 
@@ -452,8 +465,10 @@ export class QueryShaper extends HTMLElement {
     try {
       for (;;) {
         try {
+          const promptText = this.#buildQueryPrompt(searchText, history)
+          devLog(`${this.#tag()} #${id} prompt text:`, promptText)
           raw = await devTimed(`${this.#tag()} #${id} prompt()`, () =>
-            child.prompt(this.#buildQueryPrompt(searchText, history), {
+            child.prompt(promptText, {
               responseConstraint: buildSuggestionsResponseSchema(maxSuggestions),
               signal: controller.signal,
             }),
@@ -480,11 +495,16 @@ export class QueryShaper extends HTMLElement {
       child.destroy()
     }
     const parsed = JSON.parse(raw) as { suggestions: string[] }
+    devLog(`${this.#tag()} #${id} raw suggestions from model:`, parsed.suggestions)
     const allowExpression = this.fields !== undefined
     // maxItems on the schema should already bound this, but never fully trust the model to
     // honor a structural constraint — enforce the real limit in code too.
     const suggestions = parsed.suggestions
-      .map((s) => this.#renderSuggestion(s, allowExpression))
+      .map((s) => {
+        const parsedFields = extractFieldValues(s)
+        devLog(`${this.#tag()} #${id} parsed "${s}" ->`, parsedFields)
+        return this.#renderSuggestion(s, parsedFields, allowExpression)
+      })
       .filter((s): s is string => s !== null)
       .filter((s) => s.trim() !== searchText.trim())
       .slice(0, maxSuggestions)
@@ -511,7 +531,8 @@ export class QueryShaper extends HTMLElement {
   #buildFieldsSection(): string | null {
     const fields = this.fields
     const examples = this.examples
-    if (fields === undefined && examples === undefined) return null
+    const notes = this.notes
+    if (fields === undefined && examples === undefined && notes === undefined) return null
     const lines: string[] = []
     if (fields !== undefined) {
       const fieldsDescription = typeof fields === 'string' ? fields : JSON.stringify(fields)
@@ -527,17 +548,19 @@ export class QueryShaper extends HTMLElement {
         )
       }
     }
+    if (notes !== undefined) {
+      lines.push(`Notes: ${notes}`)
+    }
     return lines.join('\n')
   }
 
   // Every suggestion is always written by the model as a Lucene-style string (see
-  // GENERIC_INSTRUCTION) and converted here into the FieldValue[] tuples #renderFormat
-  // already knows how to render — see lucene-parser.ts for the grammar covered. A
-  // suggestion that fails to parse (genuinely malformed structured query), or that
-  // references a field despite none being declared for this instance, is dropped
-  // entirely rather than shown broken or untrustworthy.
-  #renderSuggestion(raw: string, allowExpression: boolean): string | null {
-    const fields = extractFieldValues(raw)
+  // GENERIC_INSTRUCTION) and converted, by the caller, into the FieldValue[] tuples
+  // #renderFormat already knows how to render — see lucene-parser.ts for the grammar
+  // covered. `fields` is null when `raw` failed to parse (genuinely malformed structured
+  // query); a suggestion that references a field despite none being declared for this
+  // instance is also dropped entirely rather than shown broken or untrustworthy.
+  #renderSuggestion(raw: string, fields: FieldValue[] | null, allowExpression: boolean): string | null {
     if (fields === null) return null
     if (!allowExpression && fields.some((f) => f.field)) return null
     if (this.format === 'lucene') return raw.trim()

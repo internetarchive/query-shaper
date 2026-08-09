@@ -71,6 +71,14 @@ syntax for a specific backend's Fields, rather than describing a fielded
 intent in prose without ever committing to the syntax.
 _Avoid_: Samples, demonstrations, training data
 
+**Notes**:
+Optional, host-supplied free-form prose primed alongside Fields and
+Examples — for domain-specific guidance (a business rule, a unit
+convention, a disambiguation hint) that doesn't fit Examples'
+input/Suggestion pair shape. Teaches by instruction, where Examples teach
+by demonstration; declarative prompt tuning without touching code.
+_Avoid_: Instructions, guidance, hints (as an attribute name)
+
 **Format**:
 The preset (or custom render function) that tells `<query-shaper>` how a
 Suggestion's underlying field/value structure is rendered for a specific
