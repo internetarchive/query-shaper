@@ -73,13 +73,14 @@ const GENERIC_INSTRUCTION =
   'expansions (related terms, synonyms, or alternate phrasings for search text that is already a complete ' +
   'thought — each one a single, standalone alternative; if you have more than one idea, return each as its own ' +
   'separate suggestion instead of combining them into one item\'s text with a comma or "and"), and — if ' +
-  'available fields are described for you — up to 3 expressions: decompose the search text into ' +
-  'field/value/operator tuples in the "fields" array, one tuple per condition or bare term, using only the ' +
-  'described fields; never author the rendered query syntax yourself in "text" — only fall back to plain ' +
-  '"text" in the rare case where the search text truly cannot be decomposed into tuples at all. Return each as ' +
-  'its own separate item in the suggestions array — never merge multiple kinds into one item, never invent ' +
-  'extra properties beyond the ones described, and never include "fields" on a correction/completion/expansion ' +
-  'item — that property belongs to expression only.'
+  'available fields are described for you — up to 3 expressions: think of it as if you were writing a ' +
+  'Lucene-style query — field:value tokens, quoted phrases for multi-word values, AND/OR or +/- between terms ' +
+  '— using only the described fields, then decompose that query into field/value/operator tuples in the ' +
+  '"fields" array, one tuple per condition or bare term; never author the rendered query syntax yourself in ' +
+  '"text" — only fall back to plain "text" in the rare case where the search text truly cannot be decomposed ' +
+  'into tuples at all. Return each as its own separate item in the suggestions array — never merge multiple ' +
+  'kinds into one item, never invent extra properties beyond the ones described, and never include "fields" ' +
+  'on a correction/completion/expansion item — that property belongs to expression only.'
 
 // Dev-only visibility into session lifecycle and generation timing — every call site is
 // guarded by import.meta.env.DEV, a compile-time constant Vite replaces and then
@@ -180,9 +181,10 @@ function buildSuggestionsResponseSchema() {
                 'expansion: broadens the Search Text with related terms, synonyms, or alternate phrasings, ' +
                 'for text that already reads as a complete thought — one single, standalone alternative per ' +
                 'item, never multiple ideas joined by a comma or "and" in one item\'s text. ' +
-                'expression: reformulates the Search Text as a fielded and/or boolean query, decomposed into ' +
-                'field/value/operator tuples in "fields" using the Available Fields below — not authored ' +
-                'directly as text.',
+                'expression: think of it as if you were writing a Lucene-style query (field:value tokens, ' +
+                'quoted multi-word values, AND/OR or +/- between terms) using the Available Fields below, then ' +
+                'decompose that query into field/value/operator tuples in "fields" — not authored directly as ' +
+                'text.',
             },
             text: {
               type: 'string',

@@ -271,7 +271,18 @@ also flagged as a Correction) — see the unified-generation note below.
    `text` is a last resort, reserved for search text that truly can't be
    decomposed into tuples — a distinction that only became sayable this
    plainly once `sql` (where writing `text` directly was the *only* channel)
-   was removed; see ADR-0006. If the model still returns an Expression with
+   was removed; see ADR-0006. Both also frame the decomposition step itself
+   as "think of it as if you were writing a Lucene-style query, then
+   decompose that into tuples" — a cheap prompt-only experiment, not an
+   architecture change: it primes the model with a syntax it has seen far
+   more of in training than the bespoke `fields` tuple shape, while still
+   emitting the same schema-guaranteed `fields` array as before, no parser
+   involved. If this measurably helps, the next step under consideration
+   goes further still — having the model return the Lucene-style text
+   directly and parsing it into tuples ourselves, removing the
+   tuple-authoring ask from the model entirely — prototyped on a branch
+   first, promoted via its own ADR/spec/tickets only if it proves out. If
+   the model still returns an Expression with
    no `fields` at all but does provide `text`, that `text` is used verbatim
    as a fallback rather than rendering an empty, invisible Suggestion from
    an empty tuple set. This is a deliberate tradeoff, not an oversight:
