@@ -68,19 +68,26 @@ const GENERIC_INSTRUCTION =
   'Suggest improvements to the search text given in each prompt: up to 1 correction (only if there is a likely ' +
   'typo or misspelling in text that is already a complete phrase — never use correction to fill in a missing ' +
   'word or finish an unfinished phrase, that is completion\'s job, not correction\'s), up to 2 completions ' +
-  '(only if the search text looks like an unfinished word or phrase — each one a distinct, plausible way to ' +
-  'finish it, e.g. "new y" -> "new york", not a broader or related term, just the same one, finished), up to 2 ' +
-  'expansions (related terms, synonyms, or alternate phrasings for search text that is already a complete ' +
-  'thought — each one a single, standalone alternative; if you have more than one idea, return each as its own ' +
-  'separate suggestion instead of combining them into one item\'s text with a comma or "and"), and — if ' +
-  'available fields are described for you — up to 3 expressions: think of it as if you were writing a ' +
-  'Lucene-style query — field:value tokens, quoted phrases for multi-word values, AND/OR or +/- between terms ' +
-  '— using only the described fields, then decompose that query into field/value/operator tuples in the ' +
-  '"fields" array, one tuple per condition or bare term; never author the rendered query syntax yourself in ' +
-  '"text" — only fall back to plain "text" in the rare case where the search text truly cannot be decomposed ' +
-  'into tuples at all. Return each as its own separate item in the suggestions array — never merge multiple ' +
-  'kinds into one item, never invent extra properties beyond the ones described, and never include "fields" ' +
-  'on a correction/completion/expansion item — that property belongs to expression only.'
+  '(only if the search text looks like an unfinished word or phrase, truncated mid-word or mid-phrase — never ' +
+  'for search text that already reads as a complete, grammatical thought, that is expansion\'s job, not ' +
+  'completion\'s; each one must start with the search text exactly as given and only append the missing ' +
+  'ending, never reword or drop anything already typed, e.g. "new y" -> "new york", not a broader or related ' +
+  'term, just the same one, finished), up to 2 expansions (related terms, synonyms, or alternate phrasings ' +
+  'for search text that is already a complete thought — each one a single, standalone alternative; if you ' +
+  'have more than one idea, return each as its own separate suggestion instead of combining them into one ' +
+  'item\'s text with a comma or "and"), and — if available fields are described for you — up to 3 ' +
+  'expressions: think of it as if you were writing a Lucene-style query — field:value tokens, quoted phrases ' +
+  'for multi-word values, AND/OR or +/- between terms — using only the described fields, then decompose that ' +
+  'query into field/value/operator tuples in the "fields" array, one tuple per condition or bare term. ' +
+  '"operator" is only ever AND, OR, +, -, or omitted — never a comparison like <, >, <=, or >=, and never a ' +
+  'field name; if the search text implies a range or comparison the available fields can\'t express that way ' +
+  '(e.g. "under $50", "before 2000"), pick a single representative value with no operator instead of ' +
+  'inventing unsupported syntax or repeating the same field twice with conflicting values. Never author the ' +
+  'rendered query syntax yourself in "text" — only fall back to plain "text" in the rare case where the ' +
+  'search text truly cannot be decomposed into tuples at all. Return each as its own separate item in the ' +
+  'suggestions array — never merge multiple kinds into one item, never invent extra properties beyond the ' +
+  'ones described, and never include "fields" on a correction/completion/expansion item — that property ' +
+  'belongs to expression only.'
 
 // Dev-only visibility into session lifecycle and generation timing — every call site is
 // guarded by import.meta.env.DEV, a compile-time constant Vite replaces and then
@@ -176,8 +183,12 @@ function buildSuggestionsResponseSchema() {
                 'correction: fixes a likely typo or misspelling in a Search Text that is already a complete ' +
                 'phrase, keeping its meaning intact — never used to fill in a missing word or finish an ' +
                 'unfinished phrase; that is completion, not correction. ' +
-                'completion: the Search Text looks like an unfinished word or phrase — a distinct, plausible way ' +
-                'to finish it (e.g. "new y" -> "new york"), the same thing, not a broader or related one. ' +
+                'completion: the Search Text looks like an unfinished word or phrase, truncated mid-word or ' +
+                'mid-phrase — never used for search text that already reads as a complete, grammatical thought; ' +
+                'that is expansion, not completion. The returned text must start with the Search Text exactly ' +
+                'as given, only appending the missing ending — never rewording or dropping anything already ' +
+                'typed. A distinct, plausible way to finish it (e.g. "new y" -> "new york"), the same thing, ' +
+                'not a broader or related one. ' +
                 'expansion: broadens the Search Text with related terms, synonyms, or alternate phrasings, ' +
                 'for text that already reads as a complete thought — one single, standalone alternative per ' +
                 'item, never multiple ideas joined by a comma or "and" in one item\'s text. ' +
@@ -201,9 +212,10 @@ function buildSuggestionsResponseSchema() {
               description:
                 'For an expression kind, this is the primary channel: EVERY field/value/operator tuple that ' +
                 'captures the Search Text\'s intent, all in this one array — never invent a second array or a ' +
-                'differently-named property for more of them, and never fall back to writing the query in ' +
-                '"text" unless decomposition is truly impossible. Omit this property entirely for every other ' +
-                'kind — correction/completion/expansion never have fields.',
+                'differently-named property for more of them, never repeat the same field twice with ' +
+                'conflicting values, and never fall back to writing the query in "text" unless decomposition ' +
+                'is truly impossible. Omit this property entirely for every other kind — ' +
+                'correction/completion/expansion never have fields.',
               items: {
                 type: 'object',
                 properties: {
@@ -214,7 +226,10 @@ function buildSuggestionsResponseSchema() {
                   value: { type: 'string', description: 'The term or field value.' },
                   operator: {
                     type: 'string',
-                    description: 'A format-specific operator, e.g. AND/OR, or +/-. Omit when not applicable.',
+                    description:
+                      'A format-specific operator: AND, OR, +, or -. Never a comparison operator like <, >, ' +
+                      '<=, or >=, and never a field name. Omit when not applicable — never invent a value here ' +
+                      'instead of omitting.',
                   },
                 },
                 required: ['value'],

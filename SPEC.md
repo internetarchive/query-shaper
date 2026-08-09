@@ -266,6 +266,27 @@ also flagged as a Correction) — see the unified-generation note below.
    returned as separate Suggestions, never bundled into one item's `text`
    with a comma or "and" (also observed happening in practice).
 
+   The same live testing surfaced two further quirks, addressed the same
+   way. First, the Correction/Completion line wasn't the only one the model
+   crossed: it also produced Completions for search text that already read
+   as complete (once even returning text *shorter* than the input, which
+   isn't a completion by any definition) — the instruction now explicitly
+   says Completion never applies to already-complete text, and that a
+   Completion's text must start with the Search Text exactly as given,
+   only appending the missing ending, never rewording or dropping what was
+   already typed (observed happening: `"men are from mars women are from"`
+   completed to `"mars women are from Earth"`, silently dropping the first
+   two words). Second, `operator` was never meant to hold anything but
+   `AND`/`OR`/`+`/`-`, but nothing told the model that — faced with a
+   comparison the available Fields can't express (`"electronics under
+   $50"`), it invented `>=`/`<` as operator values and, in one observed
+   case, returned the same field twice with conflicting values and leaked
+   a field's own name into its `operator` slot, producing an unusable
+   rendered string. The instruction and the `operator` schema description
+   now both state the closed set of legal values explicitly and tell the
+   model to pick a single representative value (no operator) rather than
+   invent unsupported comparison syntax when a range can't be expressed.
+
    The instruction and schema descriptions both tell the model that `fields`
    is the primary channel for an Expression and that writing directly into
    `text` is a last resort, reserved for search text that truly can't be
