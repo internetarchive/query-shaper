@@ -30,11 +30,12 @@ built-in AI APIs, query interpretation:
 
 ## Status
 
-Early development. The design is settled — see `CONTEXT.md` for the
-vocabulary, `docs/adr/` for the hardest-to-reverse architectural calls, and
-`SPEC.md` for the full element API and generation flow — but the component
-itself is just scaffolding right now; the actual behavior tracked in
-`SPEC.md` is still being implemented.
+Early development, pre-release (`0.0.1`, unpublished). The core behavior
+tracked in `SPEC.md` — Correction/Completion/Expansion/Expression
+generation, the `lucene`/`url-params`/`simple-query-string` Formats,
+Actions, History, the accessible popup UI, and the demo page — is
+implemented; see `CONTEXT.md` for the vocabulary and `docs/adr/` for the
+hardest-to-reverse architectural calls.
 
 ## Development
 
