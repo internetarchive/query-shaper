@@ -33,6 +33,25 @@ always wins when both are set. Absent entirely → the model is never told
 about any fields; a Suggestion that references one anyway is dropped
 rather than shown (see "Generation flow" below).
 
+**`examples`** (attribute or `.examples` property, optional): few-shot
+input/Suggestion pairs primed alongside Fields, one time, into the same
+parent-session message — invalidated and rebuilt together with Fields
+under the same snapshot check. JSON-parsed first (an array of `{ input:
+string; suggestions: string[] }`, each entry's Search Text paired with
+every good Suggestion for it — an array, matching the real shape
+`query-shaper-suggestions` returns, since an input can have more than one
+valid answer); if parsing fails, treated as a free-form string passed
+through as-is, same fallback as `fields`. Exists because free-text
+Suggestion generation (see "Generation flow" below) turned out to need
+concrete, backend-specific demonstrations of real `field:value` syntax
+more than the old tuple-schema design did — without it, the model
+noticeably reverts to describing intent in prose (mentioning a field name
+as a bare word, never actually writing the colon) rather than committing
+to real Lucene syntax, especially for anything comparison-shaped. A couple
+of relevant, correctly-written examples measurably steadies this, without
+touching the response schema — so the schema-simplicity latency win
+(see below) is unaffected.
+
 **`base`** (attribute, optional): the root URL that `format="url-params"`
 optionally composes a full URL onto instead of rendering a bare query
 string (see the `url-params` entry below). Accepts a relative path, an
@@ -297,6 +316,26 @@ operator's Format-specific meaning, etc.).
    structurally rather than patching it further; see "Suggestion parsing
    and rendering" above for how query-shaper decomposes that string itself
    instead of trusting the model to supply pre-decomposed tuples.
+
+   Live testing confirmed a real, sizable latency win from this
+   simplification too: a flat `{ suggestions: string[] }` schema is far
+   easier for Chrome's on-device constrained decoding to satisfy than the
+   old nested, conditionally-shaped object schema — results that previously
+   took a long, sometimes multi-second-per-retry wait now typically return
+   all 5 Suggestions in 1–3 seconds (cold start still slower). The same
+   testing also surfaced a real cost specific to the fielded case: without
+   the old schema's *required, separate* `field`/`value` JSON properties
+   forcing real decomposition, the model noticeably reverts to describing
+   a fielded intent in prose — mentioning a field name as a bare word
+   without ever writing the colon, or inventing a field that was never
+   declared — especially once a comparison it can't express is involved.
+   Since a bare-word sequence like that is syntactically valid (if
+   meaningless) Lucene, it isn't caught by the parse-failure drop below.
+   The mitigation is the `examples` attribute (see Element API above):
+   a couple of concrete, backend-specific input → Suggestion pairs primed
+   alongside Fields, demonstrating the real `field:value` syntax wanted —
+   a pure prompt-content addition that doesn't touch the schema, so the
+   latency win is unaffected.
 
    A string that fails to parse as valid Lucene-style syntax, or that
    references a field despite none being declared, is dropped entirely

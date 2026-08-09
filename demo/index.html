@@ -83,12 +83,20 @@
         Format <code>lucene</code>; Action <code>opensearch</code>, with the
         <code>template</code> sourced directly from Open Library's real
         <a href="https://openlibrary.org/static/opensearch.xml">OpenSearch description document</a>.
+        Also declares two <code>examples</code> — few-shot input/Suggestion
+        pairs primed alongside Fields, demonstrating correct field:value
+        syntax for exactly the cases (a range-shaped condition, correct
+        title-vs-author assignment) that were unreliable without them.
       </p>
       <form>
         <input id="ol-search" type="search" placeholder="e.g. books by Cory Doctorow in English" />
         <query-shaper
           for="ol-search"
           fields='[{"name":"author"},{"name":"title"},{"name":"language","description":"ISO 639 code"},{"name":"first_publish_year","type":"number"}]'
+          examples='[
+            {"input":"harry potter books published before 2000","suggestions":["title:\"harry potter\" AND first_publish_year:[1000 TO 2000]"]},
+            {"input":"books by cory doctorow in english","suggestions":["author:\"cory doctorow\" AND language:en"]}
+          ]'
           format="lucene"
           action="opensearch"
           template="https://openlibrary.org/search?q={searchTerms}&mode=everything"
@@ -141,11 +149,19 @@
 
     <section>
       <h2>6. Inline JSON Fields</h2>
-      <p>The more precise, structured declaration path.</p>
+      <p>
+        The more precise, structured declaration path. Also declares
+        <code>examples</code>, demonstrating a comparison rendered as a
+        real Lucene range and correct usage of the boolean field.
+      </p>
       <input id="generic-json" type="search" placeholder="e.g. electronics under $50 in stock" />
       <query-shaper
         for="generic-json"
         fields='[{"name":"category"},{"name":"price","type":"number"},{"name":"in_stock","type":"boolean"}]'
+        examples='[
+          {"input":"electronics under $50","suggestions":["category:electronics AND price:[0 TO 50]","cheap electronics"]},
+          {"input":"laptops in stock","suggestions":["category:laptop AND in_stock:true"]}
+        ]'
       ></query-shaper>
     </section>
 

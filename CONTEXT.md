@@ -63,6 +63,14 @@ fields to reformulate against, and a Suggestion that references one anyway
 is dropped rather than shown.
 _Avoid_: Schema, field schema, index schema
 
+**Examples**:
+Optional, host-supplied few-shot demonstrations pairing a sample Search
+Text with the Suggestions that would be good answers for it, primed
+alongside Fields. Exists to steady the model toward real `field:value`
+syntax for a specific backend's Fields, rather than describing a fielded
+intent in prose without ever committing to the syntax.
+_Avoid_: Samples, demonstrations, training data
+
 **Format**:
 The preset (or custom render function) that tells `<query-shaper>` how a
 Suggestion's underlying field/value structure is rendered for a specific

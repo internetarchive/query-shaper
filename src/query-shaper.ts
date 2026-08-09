@@ -9,6 +9,9 @@ export type FieldDescriptor = {
 
 export type Fields = string | FieldDescriptor[]
 
+export type Example = { input: string; suggestions: string[] }
+export type Examples = string | Example[]
+
 export type FieldValue = { field?: string; value: string; operator?: string }
 export type FormatPreset = 'lucene' | 'url-params' | 'simple-query-string'
 export type FormatRenderer = (fields: FieldValue[]) => string
@@ -199,6 +202,25 @@ export class QueryShaper extends HTMLElement {
   set fields(value: Fields | undefined) {
     this.#fieldsOverride = value
     this.#hasFieldsOverride = true
+  }
+
+  #examplesOverride: Examples | undefined
+  #hasExamplesOverride = false
+
+  get examples(): Examples | undefined {
+    if (this.#hasExamplesOverride) return this.#examplesOverride
+    const attr = this.getAttribute('examples')
+    if (attr === null) return undefined
+    try {
+      return JSON.parse(attr)
+    } catch {
+      return attr
+    }
+  }
+
+  set examples(value: Examples | undefined) {
+    this.#examplesOverride = value
+    this.#hasExamplesOverride = true
   }
 
   #formatOverride: Format | undefined
@@ -488,9 +510,24 @@ export class QueryShaper extends HTMLElement {
 
   #buildFieldsSection(): string | null {
     const fields = this.fields
-    if (fields === undefined) return null
-    const fieldsDescription = typeof fields === 'string' ? fields : JSON.stringify(fields)
-    return `Available fields: ${fieldsDescription}`
+    const examples = this.examples
+    if (fields === undefined && examples === undefined) return null
+    const lines: string[] = []
+    if (fields !== undefined) {
+      const fieldsDescription = typeof fields === 'string' ? fields : JSON.stringify(fields)
+      lines.push(`Available fields: ${fieldsDescription}`)
+    }
+    if (examples !== undefined) {
+      lines.push('Examples:')
+      if (typeof examples === 'string') {
+        lines.push(examples)
+      } else {
+        lines.push(
+          ...examples.map((e) => `- "${e.input}" -> ${e.suggestions.map((s) => `"${s}"`).join(', ')}`),
+        )
+      }
+    }
+    return lines.join('\n')
   }
 
   // Every suggestion is always written by the model as a Lucene-style string (see
