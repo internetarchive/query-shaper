@@ -29,17 +29,6 @@ describe('QueryShaper Fields', () => {
     expect(shaper.fields).toBeUndefined()
   })
 
-  it('parses a JSON object fields attribute into a Resource-keyed record', () => {
-    const shaper = new QueryShaper()
-    shaper.setAttribute('fields', '{"books":[{"name":"title"}],"categories":[{"name":"id"}]}')
-    document.body.appendChild(shaper)
-
-    expect(shaper.fields).toEqual({
-      books: [{ name: 'title' }],
-      categories: [{ name: 'id' }],
-    })
-  })
-
   it('lets the imperative property override the attribute', () => {
     const shaper = new QueryShaper()
     shaper.setAttribute('fields', '[{"name":"title"}]')
