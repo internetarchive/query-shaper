@@ -63,8 +63,13 @@ const GENERIC_INSTRUCTION =
 // guarded by import.meta.env.DEV, a compile-time constant Vite replaces and then
 // tree-shakes away entirely in a production build (verified: none of this, or its call
 // sites, appear in dist/query-shaper.js).
+function devTimestamp(): string {
+  const d = new Date()
+  return `${d.toLocaleTimeString([], { hour12: false })}.${String(d.getMilliseconds()).padStart(3, '0')}`
+}
+
 function devLog(...args: unknown[]): void {
-  if (import.meta.env.DEV) console.log('[query-shaper]', ...args)
+  if (import.meta.env.DEV) console.log(`[query-shaper ${devTimestamp()}]`, ...args)
 }
 
 async function devTimed<T>(label: string, fn: () => Promise<T>): Promise<T> {
