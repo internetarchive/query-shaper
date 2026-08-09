@@ -146,6 +146,11 @@ describe('extractFieldValues — malformed input', () => {
     expect(extractFieldValues('category:electronics AND price:')).toBeNull()
   })
 
+  it('drops a suggestion that is entirely just a dangling field with nothing else', () => {
+    expect(extractFieldValues('author:')).toBeNull()
+    expect(extractFieldValues('title: ')).toBeNull()
+  })
+
   it('drops a suggestion with an unterminated range', () => {
     expect(extractFieldValues('year:[2020')).toBeNull()
   })

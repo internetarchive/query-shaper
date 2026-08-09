@@ -34,6 +34,11 @@ function hasQueryStructure(text: string): boolean {
   if (/\bAND\b|\bOR\b|\bNOT\b/.test(text)) return true
   if (/(^|\s)[+-]\S/.test(text)) return true
   if (/[A-Za-z0-9_.]+:\S/.test(text)) return true
+  // A dangling "field:" with nothing after it (the whole string, not just a substring) is
+  // still a structure signal — it's a field reference the model failed to finish, not a
+  // plain phrase that happens to contain a colon (e.g. a URL) — so it should go through
+  // the real parser and get rejected there, not slip through as literal opaque text.
+  if (/^[A-Za-z0-9_.]+:$/.test(text)) return true
   if ((text.match(/"/g) ?? []).length > 2) return true
   return false
 }
