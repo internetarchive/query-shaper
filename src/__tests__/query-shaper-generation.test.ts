@@ -96,9 +96,7 @@ describe('QueryShaper generation', () => {
     })
     lm.clonedSession.prompt
       .mockImplementationOnce(() => firstPrompt)
-      .mockImplementationOnce(() =>
-        Promise.resolve(JSON.stringify({ suggestions: [{ kind: 'correction', text: 'second, newer result' }] })),
-      )
+      .mockImplementationOnce(() => Promise.resolve(JSON.stringify({ suggestions: ['second, newer result'] })))
 
     const suggestionEvents: unknown[] = []
     shaper.addEventListener('query-shaper-suggestions', (e) => {
@@ -112,9 +110,9 @@ describe('QueryShaper generation', () => {
     input.value = 'second, faster query'
     input.dispatchEvent(new Event('input'))
     await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1), { timeout: 1000 })
-    expect(suggestionEvents[0]).toEqual([{ kind: 'correction', text: 'second, newer result' }])
+    expect(suggestionEvents[0]).toEqual(['second, newer result'])
 
-    resolveFirst(JSON.stringify({ suggestions: [{ kind: 'correction', text: 'first, STALE result' }] }))
+    resolveFirst(JSON.stringify({ suggestions: ['first, STALE result'] }))
     await new Promise((resolve) => setTimeout(resolve, 50))
 
     expect(suggestionEvents).toHaveLength(1)
@@ -122,12 +120,7 @@ describe('QueryShaper generation', () => {
 
   it('generates suggestions from a debounced input and emits them', async () => {
     const lm = mockLanguageModel({
-      promptResponse: {
-        suggestions: [
-          { kind: 'correction', text: 'climate change' },
-          { kind: 'expansion', text: 'global warming' },
-        ],
-      },
+      promptResponse: { suggestions: ['climate change', 'global warming'] },
     })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const { shaper, input } = mount()
@@ -146,21 +139,12 @@ describe('QueryShaper generation', () => {
     await vi.advanceTimersByTimeAsync(400)
     await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
 
-    expect(suggestionEvents[0]).toEqual([
-      { kind: 'correction', text: 'climate change' },
-      { kind: 'expansion', text: 'global warming' },
-    ])
+    expect(suggestionEvents[0]).toEqual(['climate change', 'global warming'])
   })
 
-  it('excludes a Correction or Expansion identical to the Search Text, keeping the rest', async () => {
+  it('excludes a suggestion identical to the Search Text, keeping the rest', async () => {
     const lm = mockLanguageModel({
-      promptResponse: {
-        suggestions: [
-          { kind: 'correction', text: 'climate change' },
-          { kind: 'expansion', text: 'climate change' },
-          { kind: 'expansion', text: 'global warming' },
-        ],
-      },
+      promptResponse: { suggestions: ['climate change', 'climate change', 'global warming'] },
     })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const { shaper, input } = mount()
@@ -178,14 +162,12 @@ describe('QueryShaper generation', () => {
     await vi.advanceTimersByTimeAsync(400)
     await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
 
-    expect(suggestionEvents[0]).toEqual([{ kind: 'expansion', text: 'global warming' }])
+    expect(suggestionEvents[0]).toEqual(['global warming'])
   })
 
-  it('excludes an Expression whose rendered text is identical to the Search Text', async () => {
+  it('excludes a fielded suggestion whose rendered text is identical to the Search Text', async () => {
     const lm = mockLanguageModel({
-      promptResponse: {
-        suggestions: [{ kind: 'expression', fields: [{ value: 'climate change' }] }],
-      },
+      promptResponse: { suggestions: ['title:climate'] },
     })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const { shaper, input } = mount()
@@ -199,7 +181,7 @@ describe('QueryShaper generation', () => {
       suggestionEvents.push((e as CustomEvent).detail.suggestions)
     })
 
-    input.value = 'climate change'
+    input.value = 'title:climate'
     input.dispatchEvent(new Event('input'))
     await vi.advanceTimersByTimeAsync(400)
     await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
@@ -209,7 +191,7 @@ describe('QueryShaper generation', () => {
 
   it('skips the model call and clears suggestions when the Target is cleared', async () => {
     const lm = mockLanguageModel({
-      promptResponse: { suggestions: [{ kind: 'correction', text: 'climate change' }] },
+      promptResponse: { suggestions: ['climate change'] },
     })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const { shaper, input } = mount()
@@ -275,19 +257,9 @@ describe('QueryShaper generation', () => {
     expect(promptText).toContain('cli')
   })
 
-  it('renders an expression suggestion using the configured lucene format', async () => {
+  it('uses the model\'s raw Lucene text verbatim for the lucene format, without reinterpreting it', async () => {
     const lm = mockLanguageModel({
-      promptResponse: {
-        suggestions: [
-          {
-            kind: 'expression',
-            fields: [
-              { field: 'title', value: 'climate change' },
-              { field: 'year', value: '2020', operator: 'AND' },
-            ],
-          },
-        ],
-      },
+      promptResponse: { suggestions: ['title:"climate change" AND year:2020'] },
     })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const { shaper, input } = mount()
@@ -307,79 +279,12 @@ describe('QueryShaper generation', () => {
     await vi.advanceTimersByTimeAsync(400)
     await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
 
-    expect(suggestionEvents[0]).toEqual([
-      {
-        kind: 'expression',
-        text: 'title:"climate change" AND year:2020',
-        fields: [
-          { field: 'title', value: 'climate change' },
-          { field: 'year', value: '2020', operator: 'AND' },
-        ],
-      },
-    ])
+    expect(suggestionEvents[0]).toEqual(['title:"climate change" AND year:2020'])
   })
 
-  it('does not double-quote a field value the model already quoted itself', async () => {
+  it('leaves a bare, unscoped multi-word phrase unquoted in the lucene format', async () => {
     const lm = mockLanguageModel({
-      promptResponse: {
-        suggestions: [{ kind: 'expression', fields: [{ field: 'title', value: '"climate change"' }] }],
-      },
-    })
-    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
-    const { shaper, input } = mount()
-    shaper.setAttribute('fields', '[{"name":"title"}]')
-    shaper.setAttribute('format', 'lucene')
-
-    input.dispatchEvent(new Event('focus'))
-    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
-
-    const suggestionEvents: unknown[] = []
-    shaper.addEventListener('query-shaper-suggestions', (e) => {
-      suggestionEvents.push((e as CustomEvent).detail.suggestions)
-    })
-
-    input.value = 'climate change'
-    input.dispatchEvent(new Event('input'))
-    await vi.advanceTimersByTimeAsync(400)
-    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
-
-    expect((suggestionEvents[0] as Array<{ text: string }>).at(0)?.text).toBe('title:"climate change"')
-  })
-
-  it('falls back to the model\'s raw text when it omits fields for a lucene/simple-query-string/url-params Expression', async () => {
-    const lm = mockLanguageModel({
-      promptResponse: {
-        suggestions: [{ kind: 'expression', text: 'climate change documentaries AND year=2020' }],
-      },
-    })
-    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
-    const { shaper, input } = mount()
-    shaper.setAttribute('fields', '[{"name":"year"}]')
-    shaper.setAttribute('format', 'lucene')
-
-    input.dispatchEvent(new Event('focus'))
-    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
-
-    const suggestionEvents: unknown[] = []
-    shaper.addEventListener('query-shaper-suggestions', (e) => {
-      suggestionEvents.push((e as CustomEvent).detail.suggestions)
-    })
-
-    input.value = 'climate chang documentaries from 2020'
-    input.dispatchEvent(new Event('input'))
-    await vi.advanceTimersByTimeAsync(400)
-    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
-
-    expect(suggestionEvents[0]).toEqual([
-      { kind: 'expression', text: 'climate change documentaries AND year=2020' },
-    ])
-  })
-
-  it('leaves a bare, unscoped multi-word term unquoted in the lucene format', async () => {
-    const lm = mockLanguageModel({
-      promptResponse: {
-        suggestions: [{ kind: 'expression', fields: [{ value: 'climate change' }] }],
-      },
+      promptResponse: { suggestions: ['climate change'] },
     })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const { shaper, input } = mount()
@@ -399,28 +304,16 @@ describe('QueryShaper generation', () => {
     await vi.advanceTimersByTimeAsync(400)
     await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
 
-    expect((suggestionEvents[0] as Array<{ text: string }>).at(0)?.text).toBe('climate change')
+    expect((suggestionEvents[0] as string[]).at(0)).toBe('climate change')
   })
 
-  it('renders bare, unscoped terms alongside field-scoped ones in the lucene format', async () => {
+  it('drops a suggestion whose query structure cannot be parsed', async () => {
     const lm = mockLanguageModel({
-      promptResponse: {
-        suggestions: [
-          {
-            kind: 'expression',
-            fields: [
-              { value: 'climate' },
-              { value: 'change' },
-              { field: 'year', value: '2020', operator: 'AND' },
-            ],
-          },
-        ],
-      },
+      promptResponse: { suggestions: ['title:climate AND year:', 'climate change'] },
     })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const { shaper, input } = mount()
-    shaper.setAttribute('fields', '[{"name":"year"}]')
-    shaper.setAttribute('format', 'lucene')
+    shaper.setAttribute('fields', '[{"name":"title"}]')
 
     input.dispatchEvent(new Event('focus'))
     await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
@@ -430,29 +323,17 @@ describe('QueryShaper generation', () => {
       suggestionEvents.push((e as CustomEvent).detail.suggestions)
     })
 
-    input.value = 'climate change 2020'
+    input.value = 'climat change'
     input.dispatchEvent(new Event('input'))
     await vi.advanceTimersByTimeAsync(400)
     await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
 
-    expect((suggestionEvents[0] as Array<{ text: string }>).at(0)?.text).toBe('climate change AND year:2020')
+    expect(suggestionEvents[0]).toEqual(['climate change'])
   })
 
   it('renders an expression suggestion using the simple-query-string format', async () => {
     const lm = mockLanguageModel({
-      promptResponse: {
-        suggestions: [
-          {
-            kind: 'expression',
-            fields: [
-              { value: 'quick', operator: '+' },
-              { value: 'fox', operator: '-' },
-              { value: '"exact phrase"' },
-              { field: 'title', value: 'foo', operator: '+' },
-            ],
-          },
-        ],
-      },
+      promptResponse: { suggestions: ['+quick -fox "exact phrase" +title:foo'] },
     })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const { shaper, input } = mount()
@@ -472,55 +353,12 @@ describe('QueryShaper generation', () => {
     await vi.advanceTimersByTimeAsync(400)
     await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
 
-    expect((suggestionEvents[0] as Array<{ text: string }>).at(0)?.text).toBe(
-      '+quick -fox "exact phrase" +title:foo',
-    )
-  })
-
-  it('quotes a multi-word phrase in simple-query-string even when the model forgot to, bare or fielded', async () => {
-    const lm = mockLanguageModel({
-      promptResponse: {
-        suggestions: [
-          {
-            kind: 'expression',
-            fields: [
-              { value: 'exact phrase' },
-              { field: 'title', value: 'climate change', operator: '+' },
-            ],
-          },
-        ],
-      },
-    })
-    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
-    const { shaper, input } = mount()
-    shaper.setAttribute('fields', '[{"name":"title"}]')
-    shaper.setAttribute('format', 'simple-query-string')
-
-    input.dispatchEvent(new Event('focus'))
-    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
-
-    const suggestionEvents: unknown[] = []
-    shaper.addEventListener('query-shaper-suggestions', (e) => {
-      suggestionEvents.push((e as CustomEvent).detail.suggestions)
-    })
-
-    input.value = 'exact phrase climate change'
-    input.dispatchEvent(new Event('input'))
-    await vi.advanceTimersByTimeAsync(400)
-    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
-
-    expect((suggestionEvents[0] as Array<{ text: string }>).at(0)?.text).toBe(
-      '"exact phrase" +title:"climate change"',
-    )
+    expect((suggestionEvents[0] as string[]).at(0)).toBe('+quick -fox "exact phrase" +title:foo')
   })
 
   it('renders a bare term under a default q key in the url-params format', async () => {
     const lm = mockLanguageModel({
-      promptResponse: {
-        suggestions: [
-          { kind: 'expression', fields: [{ value: 'book' }, { field: 'language', value: 'en' }] },
-        ],
-      },
+      promptResponse: { suggestions: ['book language:en'] },
     })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const { shaper, input } = mount()
@@ -540,17 +378,12 @@ describe('QueryShaper generation', () => {
     await vi.advanceTimersByTimeAsync(400)
     await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
 
-    expect((suggestionEvents[0] as Array<{ text: string }>).at(0)?.text).toBe('q=book&language=en')
+    expect((suggestionEvents[0] as string[]).at(0)).toBe('q=book&language=en')
   })
 
-  it('drops expression suggestions when no Fields are configured', async () => {
+  it('drops a suggestion referencing a field when no Fields are configured', async () => {
     const lm = mockLanguageModel({
-      promptResponse: {
-        suggestions: [
-          { kind: 'correction', text: 'climate change' },
-          { kind: 'expression', fields: [{ field: 'title', value: 'climate change' }] },
-        ],
-      },
+      promptResponse: { suggestions: ['climate change', 'title:"climate change"'] },
     })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const { shaper, input } = mount()
@@ -569,22 +402,12 @@ describe('QueryShaper generation', () => {
     await vi.advanceTimersByTimeAsync(400)
     await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
 
-    expect(suggestionEvents[0]).toEqual([{ kind: 'correction', text: 'climate change' }])
+    expect(suggestionEvents[0]).toEqual(['climate change'])
   })
 
   it('renders an expression suggestion using the url-params format', async () => {
     const lm = mockLanguageModel({
-      promptResponse: {
-        suggestions: [
-          {
-            kind: 'expression',
-            fields: [
-              { field: 'q', value: 'book' },
-              { field: 'language', value: 'en' },
-            ],
-          },
-        ],
-      },
+      promptResponse: { suggestions: ['q:book language:en'] },
     })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const { shaper, input } = mount()
@@ -604,14 +427,12 @@ describe('QueryShaper generation', () => {
     await vi.advanceTimersByTimeAsync(400)
     await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
 
-    expect((suggestionEvents[0] as Array<{ text: string }>).at(0)?.text).toBe('q=book&language=en')
+    expect((suggestionEvents[0] as string[]).at(0)).toBe('q=book&language=en')
   })
 
   it('renders an expression suggestion using a custom .format function', async () => {
     const lm = mockLanguageModel({
-      promptResponse: {
-        suggestions: [{ kind: 'expression', fields: [{ field: 'title', value: 'book' }] }],
-      },
+      promptResponse: { suggestions: ['title:book'] },
     })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const { shaper, input } = mount()
@@ -631,18 +452,12 @@ describe('QueryShaper generation', () => {
     await vi.advanceTimersByTimeAsync(400)
     await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
 
-    expect((suggestionEvents[0] as Array<{ text: string }>).at(0)?.text).toBe('CUSTOM(title=book)')
+    expect((suggestionEvents[0] as string[]).at(0)).toBe('CUSTOM(title=book)')
   })
 
-  it('caps total suggestions at max-suggestions', async () => {
+  it('caps total suggestions at max-suggestions, even if the model returns more', async () => {
     const lm = mockLanguageModel({
-      promptResponse: {
-        suggestions: [
-          { kind: 'correction', text: 'a' },
-          { kind: 'expansion', text: 'b' },
-          { kind: 'expansion', text: 'c' },
-        ],
-      },
+      promptResponse: { suggestions: ['a', 'b', 'c'] },
     })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const { shaper, input } = mount()
@@ -661,111 +476,28 @@ describe('QueryShaper generation', () => {
     await vi.advanceTimersByTimeAsync(400)
     await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
 
-    expect(suggestionEvents[0]).toEqual([
-      { kind: 'correction', text: 'a' },
-      { kind: 'expansion', text: 'b' },
-    ])
+    expect(suggestionEvents[0]).toEqual(['a', 'b'])
   })
 
-  it('caps each kind at its built-in default before any max-suggestions total cap applies', async () => {
-    const lm = mockLanguageModel({
-      promptResponse: {
-        suggestions: [
-          { kind: 'correction', text: 'c1' },
-          { kind: 'correction', text: 'c2' },
-          { kind: 'completion', text: 'p1' },
-          { kind: 'completion', text: 'p2' },
-          { kind: 'completion', text: 'p3' },
-          { kind: 'expression', fields: [{ field: 'title', value: 's1' }] },
-          { kind: 'expansion', text: 'e1' },
-          { kind: 'expression', fields: [{ field: 'title', value: 's2' }] },
-          { kind: 'expansion', text: 'e2' },
-          { kind: 'expression', fields: [{ field: 'title', value: 's3' }] },
-          { kind: 'expansion', text: 'e3' },
-          { kind: 'expression', fields: [{ field: 'title', value: 's4' }] },
-        ],
-      },
-    })
+  it('passes maxSuggestions through to the response schema\'s maxItems constraint', async () => {
+    const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const { shaper, input } = mount()
-    shaper.setAttribute('fields', '[{"name":"title"}]')
+    shaper.setAttribute('max-suggestions', '3')
 
     input.dispatchEvent(new Event('focus'))
     await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
-
-    const suggestionEvents: unknown[] = []
-    shaper.addEventListener('query-shaper-suggestions', (e) => {
-      suggestionEvents.push((e as CustomEvent).detail.suggestions)
-    })
 
     input.value = 'x'
     input.dispatchEvent(new Event('input'))
     await vi.advanceTimersByTimeAsync(400)
-    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
 
-    const suggestions = suggestionEvents[0] as Array<{ kind: string }>
-    const countByKind = (kind: string) => suggestions.filter((s) => s.kind === kind).length
-    expect(countByKind('correction')).toBe(1)
-    expect(countByKind('completion')).toBe(2)
-    expect(countByKind('expansion')).toBe(2)
-    expect(countByKind('expression')).toBe(3)
-    expect(suggestions).toHaveLength(8)
-  })
-
-  it('passes a completion suggestion through unchanged, like correction and expansion', async () => {
-    const lm = mockLanguageModel({
-      promptResponse: {
-        suggestions: [{ kind: 'completion', text: 'new york' }],
-      },
-    })
-    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
-    const { shaper, input } = mount()
-
-    input.dispatchEvent(new Event('focus'))
-    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
-
-    const suggestionEvents: unknown[] = []
-    shaper.addEventListener('query-shaper-suggestions', (e) => {
-      suggestionEvents.push((e as CustomEvent).detail.suggestions)
-    })
-
-    input.value = 'new y'
-    input.dispatchEvent(new Event('input'))
-    await vi.advanceTimersByTimeAsync(400)
-    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
-
-    expect(suggestionEvents[0]).toEqual([{ kind: 'completion', text: 'new york' }])
-  })
-
-  it('strips a stray fields property the model attaches to a non-expression suggestion', async () => {
-    const lm = mockLanguageModel({
-      promptResponse: {
-        suggestions: [
-          { kind: 'correction', text: 'earth', fields: [] },
-          { kind: 'expansion', text: 'venus', fields: [{ field: 'x', value: 'y' }] },
-        ],
-      },
-    })
-    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
-    const { shaper, input } = mount()
-
-    input.dispatchEvent(new Event('focus'))
-    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
-
-    const suggestionEvents: unknown[] = []
-    shaper.addEventListener('query-shaper-suggestions', (e) => {
-      suggestionEvents.push((e as CustomEvent).detail.suggestions)
-    })
-
-    input.value = 'mars'
-    input.dispatchEvent(new Event('input'))
-    await vi.advanceTimersByTimeAsync(400)
-    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
-
-    expect(suggestionEvents[0]).toEqual([
-      { kind: 'correction', text: 'earth' },
-      { kind: 'expansion', text: 'venus' },
-    ])
+    const [, options] = lm.clonedSession.prompt.mock.calls[0] as [
+      string,
+      { responseConstraint: { properties: { suggestions: { maxItems: number } } } },
+    ]
+    expect(options.responseConstraint.properties.suggestions.maxItems).toBe(3)
   })
 
   it('clones a fresh child per query and destroys it after use, reusing the same primed instance session', async () => {
@@ -867,32 +599,18 @@ describe('QueryShaper generation', () => {
     await vi.advanceTimersByTimeAsync(400)
     await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
 
-    // Fields/Format now live upstream (primed once via append()), not resent per query.
+    // Fields now lives upstream (primed once via append()), not resent per query.
     const [promptText] = lm.clonedSession.prompt.mock.calls[0] as [string, unknown]
     expect(promptText).not.toContain('title, author, year')
     expect(promptText).toContain('climate change')
   })
 
-  it('includes Format instructions in the append() call when Fields are configured', async () => {
-    const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
-    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
-    const { shaper, input } = mount()
-    shaper.setAttribute('fields', 'title, author, year')
-    shaper.setAttribute('format', 'url-params')
-
-    input.dispatchEvent(new Event('focus'))
-    await vi.waitFor(() => expect(lm.instanceSession.append).toHaveBeenCalledTimes(1))
-
-    const [[message]] = lm.instanceSession.append.mock.calls[0] as [[{ role: string; content: string }]]
-    expect(message.content).toContain('url-params')
-  })
-
-  it('includes prior History entries, their kind, and originating Search Text in the prompt sent to the model', async () => {
+  it('includes prior History entries and originating Search Text in the prompt sent to the model', async () => {
     localStorage.setItem(
       'query-shaper:history:search',
       JSON.stringify([
-        { searchText: 'climat chnge', suggestion: 'climate change', kind: 'correction', timestamp: 1 },
-        { searchText: 'docs about ai', suggestion: 'documents about artificial intelligence', kind: 'expansion', timestamp: 2 },
+        { searchText: 'climat chnge', suggestion: 'climate change', timestamp: 1 },
+        { searchText: 'docs about ai', suggestion: 'documents about artificial intelligence', timestamp: 2 },
       ]),
     )
     const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
@@ -909,10 +627,8 @@ describe('QueryShaper generation', () => {
 
     const [promptText] = lm.clonedSession.prompt.mock.calls[0] as [string, unknown]
     expect(promptText).toContain('climat chnge')
-    expect(promptText).toContain('correction')
     expect(promptText).toContain('climate change')
     expect(promptText).toContain('docs about ai')
-    expect(promptText).toContain('expansion')
     expect(promptText).toContain('documents about artificial intelligence')
   })
 
@@ -920,10 +636,10 @@ describe('QueryShaper generation', () => {
     localStorage.setItem(
       'query-shaper:history:search',
       JSON.stringify([
-        { searchText: 'search one', suggestion: 'result one', kind: 'correction', timestamp: 1 },
-        { searchText: 'search two', suggestion: 'result two', kind: 'correction', timestamp: 2 },
-        { searchText: 'search three', suggestion: 'result three', kind: 'correction', timestamp: 3 },
-        { searchText: 'search four', suggestion: 'result four', kind: 'correction', timestamp: 4 },
+        { searchText: 'search one', suggestion: 'result one', timestamp: 1 },
+        { searchText: 'search two', suggestion: 'result two', timestamp: 2 },
+        { searchText: 'search three', suggestion: 'result three', timestamp: 3 },
+        { searchText: 'search four', suggestion: 'result four', timestamp: 4 },
       ]),
     )
     const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
@@ -987,7 +703,7 @@ describe('QueryShaper generation', () => {
     await vi.advanceTimersByTimeAsync(400)
     await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
 
-    shaper.accept({ kind: 'correction', text: 'accepted text' })
+    shaper.accept('accepted text')
     const getItemSpy = vi.spyOn(localStorage, 'getItem')
 
     input.value = 'second query'
@@ -1008,7 +724,7 @@ describe('QueryShaper generation', () => {
     lm.clonedSession.prompt
       .mockRejectedValueOnce(unknownError)
       .mockRejectedValueOnce(unknownError)
-      .mockResolvedValueOnce(JSON.stringify({ suggestions: [{ kind: 'correction', text: 'fixed' }] }))
+      .mockResolvedValueOnce(JSON.stringify({ suggestions: ['fixed'] }))
     const { shaper, input } = mount()
 
     input.dispatchEvent(new Event('focus'))
@@ -1025,7 +741,7 @@ describe('QueryShaper generation', () => {
     await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
 
     expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(3)
-    expect(suggestionEvents[0]).toEqual([{ kind: 'correction', text: 'fixed' }])
+    expect(suggestionEvents[0]).toEqual(['fixed'])
   })
 
   it('gives up and emits query-shaper-error after exhausting UnknownError retries', async () => {
@@ -1056,8 +772,8 @@ describe('QueryShaper generation', () => {
     localStorage.setItem(
       'query-shaper:history:search',
       JSON.stringify([
-        { searchText: 'old search one', suggestion: 'result one', kind: 'correction', timestamp: 1 },
-        { searchText: 'old search two', suggestion: 'result two', kind: 'correction', timestamp: 2 },
+        { searchText: 'old search one', suggestion: 'result one', timestamp: 1 },
+        { searchText: 'old search two', suggestion: 'result two', timestamp: 2 },
       ]),
     )
     const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })

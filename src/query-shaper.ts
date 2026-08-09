@@ -1,3 +1,5 @@
+import { extractFieldValues } from './lucene-parser.js'
+
 export type FieldDescriptor = {
   name: string
   type?: 'text' | 'number' | 'date' | 'boolean'
@@ -26,68 +28,33 @@ export type LanguageModelAPI = {
   create(options?: unknown): Promise<LanguageModelSession>
 }
 
-export type RawSuggestion =
-  | { kind: 'correction'; text: string }
-  | { kind: 'completion'; text: string }
-  | { kind: 'expansion'; text: string }
-  | { kind: 'expression'; fields?: FieldValue[]; text?: string }
-
-export type Suggestion =
-  | { kind: 'correction'; text: string }
-  | { kind: 'completion'; text: string }
-  | { kind: 'expansion'; text: string }
-  | { kind: 'expression'; text: string; fields?: FieldValue[] }
+export type Suggestion = string
 
 export type HistoryEntry = {
   searchText: string
   suggestion: string
-  kind: Suggestion['kind'] | 'submit'
   timestamp: number
 }
 
 const DEBOUNCE_MS = 400
 const DOWNLOAD_PROMPT_DISMISSED_KEY = 'query-shaper:download-prompt-dismissed'
 const MAX_UNKNOWN_ERROR_RETRIES = 2
-
-const KIND_CONFIG = [
-  { kind: 'correction', defaultCap: 1 },
-  { kind: 'completion', defaultCap: 2 },
-  { kind: 'expansion', defaultCap: 2 },
-  { kind: 'expression', defaultCap: 3 },
-] as const
-
-const KIND_ORDER = KIND_CONFIG.map((k) => k.kind)
-const DEFAULT_KIND_CAPS: Record<string, number> = Object.fromEntries(
-  KIND_CONFIG.map((k) => [k.kind, k.defaultCap]),
-)
+const DEFAULT_MAX_SUGGESTIONS = 5
 
 const GENERIC_INSTRUCTION =
   'You are a keyword search assistant, not a chat assistant: every suggestion you return must read like ' +
   'something someone would type into a search box — short keywords or a phrase, never a descriptive sentence, ' +
-  'an explanation, or a list, and no sentence-ending punctuation. ' +
-  'Suggest improvements to the search text given in each prompt: up to 1 correction (only if there is a likely ' +
-  'typo or misspelling in text that is already a complete phrase — never use correction to fill in a missing ' +
-  'word or finish an unfinished phrase, that is completion\'s job, not correction\'s), up to 2 completions ' +
-  '(only if the search text looks like an unfinished word or phrase, truncated mid-word or mid-phrase — never ' +
-  'for search text that already reads as a complete, grammatical thought, that is expansion\'s job, not ' +
-  'completion\'s; each one must start with the search text exactly as given and only append the missing ' +
-  'ending, never reword or drop anything already typed, e.g. "new y" -> "new york", not a broader or related ' +
-  'term, just the same one, finished), up to 2 expansions (related terms, synonyms, or alternate phrasings ' +
-  'for search text that is already a complete thought — each one a single, standalone alternative; if you ' +
-  'have more than one idea, return each as its own separate suggestion instead of combining them into one ' +
-  'item\'s text with a comma or "and"), and — if available fields are described for you — up to 3 ' +
-  'expressions: think of it as if you were writing a Lucene-style query — field:value tokens, quoted phrases ' +
-  'for multi-word values, AND/OR or +/- between terms — using only the described fields, then decompose that ' +
-  'query into field/value/operator tuples in the "fields" array, one tuple per condition or bare term. ' +
-  '"operator" is only ever AND, OR, +, -, or omitted — never a comparison like <, >, <=, or >=, and never a ' +
-  'field name; if the search text implies a range or comparison the available fields can\'t express that way ' +
-  '(e.g. "under $50", "before 2000"), pick a single representative value with no operator instead of ' +
-  'inventing unsupported syntax or repeating the same field twice with conflicting values. Never author the ' +
-  'rendered query syntax yourself in "text" — only fall back to plain "text" in the rare case where the ' +
-  'search text truly cannot be decomposed into tuples at all. Return each as its own separate item in the ' +
-  'suggestions array — never merge multiple kinds into one item, never invent extra properties beyond the ' +
-  'ones described, and never include "fields" on a correction/completion/expansion item — that property ' +
-  'belongs to expression only.'
+  'an explanation, or a list, and no sentence-ending punctuation. Given the search text in each prompt, ' +
+  `suggest up to ${DEFAULT_MAX_SUGGESTIONS} reasonable alternative or refined queries the user might actually ` +
+  'want instead — these may fix a likely typo, complete an unfinished word or phrase, broaden with related ' +
+  'terms or synonyms, or (when fields are described below) reformulate as a fielded/boolean query, in any ' +
+  'mix, whichever are genuinely useful for this search text, most relevant first. Always write each ' +
+  'suggestion as if it were a real Lucene query: a plain phrase for a simple rewording (e.g. "the eiffel ' +
+  'tower in paris"), quoted for a multi-word phrase you mean as one unit — bare or after a field, same rule ' +
+  'either way — field:value for a fielded condition using only the fields described below, AND/OR/+/- to ' +
+  'combine conditions, and [X TO Y] for a range; never invent a field that isn\'t described. Never repeat a ' +
+  'suggestion that is identical to the search text. Return each suggestion as its own separate string in the ' +
+  'array — never combine more than one idea into a single string with a comma or "and".'
 
 // Dev-only visibility into session lifecycle and generation timing — every call site is
 // guarded by import.meta.env.DEV, a compile-time constant Vite replaces and then
@@ -166,80 +133,17 @@ const SHADOW_STYLES = `
   }
 `
 
-function buildSuggestionsResponseSchema() {
+function buildSuggestionsResponseSchema(maxSuggestions: number) {
   return {
     type: 'object',
     properties: {
       suggestions: {
         type: 'array',
-        description: 'The list of Suggestions to offer, already sorted by relevance.',
-        items: {
-          type: 'object',
-          properties: {
-            kind: {
-              type: 'string',
-              enum: ['correction', 'completion', 'expansion', 'expression'],
-              description:
-                'correction: fixes a likely typo or misspelling in a Search Text that is already a complete ' +
-                'phrase, keeping its meaning intact — never used to fill in a missing word or finish an ' +
-                'unfinished phrase; that is completion, not correction. ' +
-                'completion: the Search Text looks like an unfinished word or phrase, truncated mid-word or ' +
-                'mid-phrase — never used for search text that already reads as a complete, grammatical thought; ' +
-                'that is expansion, not completion. The returned text must start with the Search Text exactly ' +
-                'as given, only appending the missing ending — never rewording or dropping anything already ' +
-                'typed. A distinct, plausible way to finish it (e.g. "new y" -> "new york"), the same thing, ' +
-                'not a broader or related one. ' +
-                'expansion: broadens the Search Text with related terms, synonyms, or alternate phrasings, ' +
-                'for text that already reads as a complete thought — one single, standalone alternative per ' +
-                'item, never multiple ideas joined by a comma or "and" in one item\'s text. ' +
-                'expression: think of it as if you were writing a Lucene-style query (field:value tokens, ' +
-                'quoted multi-word values, AND/OR or +/- between terms) using the Available Fields below, then ' +
-                'decompose that query into field/value/operator tuples in "fields" — not authored directly as ' +
-                'text.',
-            },
-            text: {
-              type: 'string',
-              description:
-                'For correction/completion/expansion: the corrected, completed, or broadened search text — ' +
-                'short keywords or a phrase in the same language and style as the input, never a full ' +
-                'descriptive sentence, and never multiple alternatives joined by a comma (return each ' +
-                'alternative as its own separate suggestion instead). ' +
-                'For expression: omit when "fields" is populated — only provide raw query text here as a last ' +
-                'resort, when the Search Text genuinely cannot be decomposed into field/value tuples.',
-            },
-            fields: {
-              type: 'array',
-              description:
-                'For an expression kind, this is the primary channel: EVERY field/value/operator tuple that ' +
-                'captures the Search Text\'s intent, all in this one array — never invent a second array or a ' +
-                'differently-named property for more of them, never repeat the same field twice with ' +
-                'conflicting values, and never fall back to writing the query in "text" unless decomposition ' +
-                'is truly impossible. Omit this property entirely for every other kind — ' +
-                'correction/completion/expansion never have fields.',
-              items: {
-                type: 'object',
-                properties: {
-                  field: {
-                    type: 'string',
-                    description: 'The Available Field this value applies to. Omit for a bare, unscoped term.',
-                  },
-                  value: { type: 'string', description: 'The term or field value.' },
-                  operator: {
-                    type: 'string',
-                    description:
-                      'A format-specific operator: AND, OR, +, or -. Never a comparison operator like <, >, ' +
-                      '<=, or >=, and never a field name. Omit when not applicable — never invent a value here ' +
-                      'instead of omitting.',
-                  },
-                },
-                required: ['value'],
-                additionalProperties: false,
-              },
-            },
-          },
-          required: ['kind'],
-          additionalProperties: false,
-        },
+        maxItems: maxSuggestions,
+        description:
+          `Up to ${maxSuggestions} reasonable alternative or refined queries for the given search text, each ` +
+          'written as if it were a real Lucene query, most relevant first.',
+        items: { type: 'string' },
       },
     },
     required: ['suggestions'],
@@ -379,22 +283,15 @@ export class QueryShaper extends HTMLElement {
 
   #renderSuggestions(suggestions: Suggestion[]): void {
     if (this.hasAttribute('headless')) return
-    const byKind = new Map<string, Suggestion[]>()
-    for (const suggestion of suggestions) {
-      const bucket = byKind.get(suggestion.kind)
-      if (bucket) bucket.push(suggestion)
-      else byKind.set(suggestion.kind, [suggestion])
-    }
-    const grouped = KIND_ORDER.flatMap((kind) => byKind.get(kind) ?? [])
-    this.#currentSuggestions = grouped
+    this.#currentSuggestions = suggestions
     this.#activeIndex = -1
     this.target?.setAttribute('role', 'combobox')
-    this.target?.setAttribute('aria-expanded', grouped.length > 0 ? 'true' : 'false')
+    this.target?.setAttribute('aria-expanded', suggestions.length > 0 ? 'true' : 'false')
     this.target?.removeAttribute('aria-activedescendant')
 
     const root = this.#listboxContainer
     root.innerHTML = ''
-    if (grouped.length === 0) {
+    if (suggestions.length === 0) {
       this.target?.removeAttribute('aria-controls')
       return
     }
@@ -404,28 +301,16 @@ export class QueryShaper extends HTMLElement {
     list.setAttribute('role', 'listbox')
     list.addEventListener('mousedown', (e) => e.preventDefault())
     this.target?.setAttribute('aria-controls', list.id)
-    let index = 0
-    for (const kind of KIND_ORDER) {
-      const kindSuggestions = byKind.get(kind)
-      if (!kindSuggestions || kindSuggestions.length === 0) continue
-      const group = document.createElement('li')
-      group.setAttribute('part', 'option-group')
-      group.setAttribute('data-kind', kind)
-      const groupList = document.createElement('ul')
-      for (const suggestion of kindSuggestions) {
-        const option = document.createElement('li')
-        option.id = `query-shaper-option-${index}`
-        option.setAttribute('part', 'option')
-        option.setAttribute('role', 'option')
-        option.setAttribute('aria-selected', 'false')
-        option.textContent = suggestion.text
-        option.addEventListener('click', () => this.accept(suggestion))
-        groupList.appendChild(option)
-        index += 1
-      }
-      group.appendChild(groupList)
-      list.appendChild(group)
-    }
+    suggestions.forEach((suggestion, index) => {
+      const option = document.createElement('li')
+      option.id = `query-shaper-option-${index}`
+      option.setAttribute('part', 'option')
+      option.setAttribute('role', 'option')
+      option.setAttribute('aria-selected', 'false')
+      option.textContent = suggestion
+      option.addEventListener('click', () => this.accept(suggestion))
+      list.appendChild(option)
+    })
     root.appendChild(list)
   }
 
@@ -472,12 +357,12 @@ export class QueryShaper extends HTMLElement {
     if (this.target && e.target === this.target.form) {
       const pending = this.#pendingHistoryContext
       this.#pendingHistoryContext = undefined
-      if (pending) {
-        this.#recordHistory(pending.searchText, this.target.value, pending.kind)
+      if (pending !== undefined) {
+        this.#recordHistory(pending, this.target.value)
       } else {
         // A plain, accept-independent submit — the user typed and submitted directly,
         // with no distinct "original text" vs "accepted suggestion" to tell apart.
-        this.#recordHistory(this.target.value, this.target.value, 'submit')
+        this.#recordHistory(this.target.value, this.target.value)
       }
     }
   }
@@ -539,6 +424,7 @@ export class QueryShaper extends HTMLElement {
     let history = this.#readHistory()
     let raw: string
     let unknownErrorRetries = 0
+    const maxSuggestions = Number(this.getAttribute('max-suggestions') ?? DEFAULT_MAX_SUGGESTIONS)
     devLog(`${this.#tag()} #${id} generating for "${trimmed}" (${history.length} History entries)`)
     const child = await this.#session.clone()
     try {
@@ -546,7 +432,7 @@ export class QueryShaper extends HTMLElement {
         try {
           raw = await devTimed(`${this.#tag()} #${id} prompt()`, () =>
             child.prompt(this.#buildQueryPrompt(searchText, history), {
-              responseConstraint: buildSuggestionsResponseSchema(),
+              responseConstraint: buildSuggestionsResponseSchema(maxSuggestions),
               signal: controller.signal,
             }),
           )
@@ -571,21 +457,15 @@ export class QueryShaper extends HTMLElement {
     } finally {
       child.destroy()
     }
-    const parsed = JSON.parse(raw) as { suggestions: RawSuggestion[] }
+    const parsed = JSON.parse(raw) as { suggestions: string[] }
     const allowExpression = this.fields !== undefined
-    const maxSuggestions = Number(this.getAttribute('max-suggestions') ?? Infinity)
-    const kindCounts: Record<string, number> = {}
+    // maxItems on the schema should already bound this, but never fully trust the model to
+    // honor a structural constraint — enforce the real limit in code too.
     const suggestions = parsed.suggestions
-      .filter((s) => allowExpression || s.kind !== 'expression')
-      .filter((s) => {
-        const count = (kindCounts[s.kind] ?? 0) + 1
-        kindCounts[s.kind] = count
-        return count <= (DEFAULT_KIND_CAPS[s.kind] ?? Infinity)
-      })
+      .map((s) => this.#renderSuggestion(s, allowExpression))
+      .filter((s): s is string => s !== null)
+      .filter((s) => s.trim() !== searchText.trim())
       .slice(0, maxSuggestions)
-      .map((s) => this.#toSuggestion(s))
-      .filter((s): s is Suggestion => s !== null)
-      .filter((s) => s.text.trim() !== searchText.trim())
     if (id !== this.#generationId) {
       devLog(`${this.#tag()} #${id} discarded — superseded by a newer generation`)
       return
@@ -597,11 +477,10 @@ export class QueryShaper extends HTMLElement {
   #buildQueryPrompt(searchText: string, history: HistoryEntry[]): string {
     const lines = []
     if (history.length > 0) {
-      // Few-shot context: what the user typed before, and which kind of suggestion they
-      // actually accepted for it — a clue to their intent, and to what style/kind of
-      // suggestion has worked for them recently.
+      // Few-shot context: what the user typed before, and what they ultimately accepted for
+      // it — a clue to their intent and to what style of answer has worked for them recently.
       lines.push('History (prior accepted suggestions, oldest first):')
-      lines.push(...history.map((h) => `- "${h.searchText}" -> ${h.kind}: "${h.suggestion}"`))
+      lines.push(...history.map((h) => `- "${h.searchText}" -> "${h.suggestion}"`))
     }
     lines.push(`Search text: ${searchText}`)
     return lines.join('\n')
@@ -611,33 +490,29 @@ export class QueryShaper extends HTMLElement {
     const fields = this.fields
     if (fields === undefined) return null
     const fieldsDescription = typeof fields === 'string' ? fields : JSON.stringify(fields)
-    const format = this.format
-    return `Available fields: ${fieldsDescription}\nFormat: ${typeof format === 'function' ? 'custom' : format}`
+    return `Available fields: ${fieldsDescription}`
   }
 
-  #toSuggestion(raw: RawSuggestion): Suggestion | null {
-    if (raw.kind === 'expression') {
-      const fields = raw.fields ?? []
-      if (fields.length === 0 && raw.text) {
-        // The model wrote free text instead of decomposing into fields — a best-effort
-        // fallback beats silently rendering an empty, invisible suggestion.
-        return { kind: 'expression', text: raw.text }
-      }
-      return { kind: 'expression', fields, text: this.#renderFormat(fields) }
-    }
-    // Strip any stray properties the model attaches to a non-expression suggestion (e.g. an
-    // empty `fields` array) — the schema declares `fields` on every item regardless of kind,
-    // so nothing prevents the model from including it where it's meaningless.
-    return { kind: raw.kind, text: raw.text }
+  // Every suggestion is always written by the model as a Lucene-style string (see
+  // GENERIC_INSTRUCTION) and converted here into the FieldValue[] tuples #renderFormat
+  // already knows how to render — see lucene-parser.ts for the grammar covered. A
+  // suggestion that fails to parse (genuinely malformed structured query), or that
+  // references a field despite none being declared for this instance, is dropped
+  // entirely rather than shown broken or untrustworthy.
+  #renderSuggestion(raw: string, allowExpression: boolean): string | null {
+    const fields = extractFieldValues(raw)
+    if (fields === null) return null
+    if (!allowExpression && fields.some((f) => f.field)) return null
+    if (this.format === 'lucene') return raw.trim()
+    return this.#renderFormat(fields)
   }
 
+  // Only ever called for 'url-params'/'simple-query-string'/a custom FormatRenderer —
+  // 'lucene' is handled by raw passthrough in #renderSuggestion above, since the model's
+  // own Lucene-style text already needs no re-rendering into itself.
   #renderFormat(fields: FieldValue[]): string {
     const format = this.format
     if (typeof format === 'function') return format(fields)
-    if (format === 'url-params') {
-      const query = new URLSearchParams(fields.map((f) => [f.field ?? 'q', f.value] as [string, string])).toString()
-      return this.#hasBase() ? `${this.base}?${query}` : query
-    }
     if (format === 'simple-query-string') {
       // Quoting means "exact phrase" here, for a bare term as much as a fielded one — never trust
       // the model to remember it itself, since that's proven unreliable in practice.
@@ -647,13 +522,11 @@ export class QueryShaper extends HTMLElement {
         .map((f) => `${f.operator === '+' || f.operator === '-' ? f.operator : ''}${token(f)}`)
         .join(' ')
     }
-    // Bare terms stay unquoted here — an unscoped multi-word term is normal, unquoted search-box
-    // input; only a fielded value's multi-word phrase is ambiguous without quotes.
-    const token = (f: FieldValue) => (f.field ? `${f.field}:${quoteMultiWord(f.value)}` : f.value)
-    return fields.map((f, i) => (i === 0 || !f.operator ? token(f) : `${f.operator} ${token(f)}`)).join(' ')
+    const query = new URLSearchParams(fields.map((f) => [f.field ?? 'q', f.value] as [string, string])).toString()
+    return this.#hasBase() ? `${this.base}?${query}` : query
   }
 
-  #pendingHistoryContext: { searchText: string; kind: HistoryEntry['kind'] } | undefined
+  #pendingHistoryContext: string | undefined
 
   accept(suggestion: Suggestion): void {
     const action = this.getAttribute('action') ?? 'fill'
@@ -663,29 +536,29 @@ export class QueryShaper extends HTMLElement {
     if (action === 'opensearch') {
       const template = this.getAttribute('template')
       if (template) {
-        url = template.replace('{searchTerms}', encodeURIComponent(suggestion.text))
+        url = template.replace('{searchTerms}', encodeURIComponent(suggestion))
         window.location.href = url
       }
     } else if (action === 'none') {
       // no-op: the host handles everything via the query-shaper-accept event below
     } else {
-      if (this.target) this.target.value = suggestion.text
+      if (this.target) this.target.value = suggestion
       if (action === 'submit') {
         if (this.target?.form) {
           // Consumed by #onDocumentSubmit, which requestSubmit() fires synchronously
           // below — that's the only place with access to what actually got submitted.
-          this.#pendingHistoryContext = { searchText, kind: suggestion.kind }
+          this.#pendingHistoryContext = searchText
         }
         this.target?.form?.requestSubmit()
       } else if (action === 'output') {
-        this.#writeToDestination(suggestion.text)
+        this.#writeToDestination(suggestion)
       }
     }
     this.dispatchEvent(new CustomEvent('query-shaper-accept', { detail: { suggestion, action, url } }))
     // A native form submit records History itself (see #onDocumentSubmit), avoiding a
     // double-count — but only if there's actually a form to fire that submit event.
     if (action !== 'submit' || !this.target?.form) {
-      this.#recordHistory(searchText, suggestion.text, suggestion.kind)
+      this.#recordHistory(searchText, suggestion)
     }
   }
 
@@ -726,7 +599,7 @@ export class QueryShaper extends HTMLElement {
     return this.#historyCache
   }
 
-  #recordHistory(searchText: string, suggestion: string, kind: HistoryEntry['kind']): void {
+  #recordHistory(searchText: string, suggestion: string): void {
     const key = this.#historyKey()
     const max = this.#maxHistory()
     if (max <= 0) {
@@ -739,7 +612,7 @@ export class QueryShaper extends HTMLElement {
     // with, not silently overwritten by, a stale in-memory copy.
     const raw = localStorage.getItem(key)
     const entries: HistoryEntry[] = raw ? JSON.parse(raw) : []
-    entries.push({ searchText, suggestion, kind, timestamp: Date.now() })
+    entries.push({ searchText, suggestion, timestamp: Date.now() })
     const trimmed = entries.slice(-max)
     localStorage.setItem(key, JSON.stringify(trimmed))
     this.#historyCache = trimmed

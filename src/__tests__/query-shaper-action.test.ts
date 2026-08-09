@@ -10,7 +10,7 @@ describe('QueryShaper Action', () => {
   it('fills the Target with the suggestion text by default', () => {
     const { shaper, input } = mount()
 
-    shaper.accept({ kind: 'correction', text: 'climate change' })
+    shaper.accept('climate change')
 
     expect(input.value).toBe('climate change')
   })
@@ -28,7 +28,7 @@ describe('QueryShaper Action', () => {
       submitted = true
     })
 
-    shaper.accept({ kind: 'correction', text: 'climate change' })
+    shaper.accept('climate change')
 
     expect(input.value).toBe('climate change')
     expect(submitted).toBe(true)
@@ -40,12 +40,12 @@ describe('QueryShaper Action', () => {
     // deliberately no <form> ancestor for the Target
     input.value = 'climat chnge'
 
-    shaper.accept({ kind: 'correction', text: 'climate change' })
+    shaper.accept('climate change')
 
     expect(input.value).toBe('climate change')
     const stored = JSON.parse(localStorage.getItem('query-shaper:history:search') ?? '[]')
     expect(stored).toEqual([
-      { searchText: 'climat chnge', suggestion: 'climate change', kind: 'correction', timestamp: expect.any(Number) },
+      { searchText: 'climat chnge', suggestion: 'climate change', timestamp: expect.any(Number) },
     ])
   })
 
@@ -59,7 +59,7 @@ describe('QueryShaper Action', () => {
       detail = (e as CustomEvent).detail
     })
 
-    shaper.accept({ kind: 'correction', text: 'climate change' })
+    shaper.accept('climate change')
 
     expect(detail.url).toBe('https://example.com/search/climate%20change')
   })
@@ -74,11 +74,7 @@ describe('QueryShaper Action', () => {
       detail = (e as CustomEvent).detail
     })
 
-    shaper.accept({
-      kind: 'expression',
-      text: 'book language:en',
-      fields: [{ field: 'language', value: 'en' }],
-    })
+    shaper.accept('book language:en')
 
     expect(detail.url).toBe('https://web.archive.org/collection-search/gov/book%20language%3Aen')
   })
@@ -93,13 +89,13 @@ describe('QueryShaper Action', () => {
       acceptDetail = (e as CustomEvent).detail
     })
 
-    shaper.accept({ kind: 'correction', text: 'climate change' })
+    shaper.accept('climate change')
 
     expect(input.value).toBe('climat chnge')
-    expect(acceptDetail).toEqual({ suggestion: { kind: 'correction', text: 'climate change' }, action: 'none', url: undefined })
+    expect(acceptDetail).toEqual({ suggestion: 'climate change', action: 'none', url: undefined })
     const stored = JSON.parse(localStorage.getItem('query-shaper:history:search') ?? '[]')
     expect(stored).toEqual([
-      { searchText: 'climat chnge', suggestion: 'climate change', kind: 'correction', timestamp: expect.any(Number) },
+      { searchText: 'climat chnge', suggestion: 'climate change', timestamp: expect.any(Number) },
     ])
   })
 
@@ -111,7 +107,7 @@ describe('QueryShaper Action', () => {
     shaper.setAttribute('action', 'output')
     shaper.setAttribute('destination', '#result')
 
-    shaper.accept({ kind: 'correction', text: 'SELECT * FROM books' })
+    shaper.accept('SELECT * FROM books')
 
     expect(input.value).toBe('SELECT * FROM books')
     expect(textarea.value).toBe('SELECT * FROM books')
@@ -125,7 +121,7 @@ describe('QueryShaper Action', () => {
     shaper.setAttribute('action', 'output')
     shaper.setAttribute('destination', '#preview')
 
-    shaper.accept({ kind: 'correction', text: 'SELECT * FROM books' })
+    shaper.accept('SELECT * FROM books')
 
     expect(pre.textContent).toBe('SELECT * FROM books')
   })
@@ -141,7 +137,7 @@ describe('QueryShaper Action', () => {
     shaper.setAttribute('action', 'output')
     shaper.setAttribute('destination', '.preview')
 
-    shaper.accept({ kind: 'correction', text: 'SELECT * FROM books' })
+    shaper.accept('SELECT * FROM books')
 
     expect(a.textContent).toBe('SELECT * FROM books')
     expect(b.textContent).toBe('SELECT * FROM books')
@@ -152,14 +148,14 @@ describe('QueryShaper Action', () => {
     shaper.setAttribute('action', 'output')
     shaper.setAttribute('destination', '#does-not-exist')
 
-    expect(() => shaper.accept({ kind: 'correction', text: 'SELECT * FROM books' })).not.toThrow()
+    expect(() => shaper.accept('SELECT * FROM books')).not.toThrow()
   })
 
   it('falls back to an internal <output> element when destination is absent', () => {
     const { shaper } = mount()
     shaper.setAttribute('action', 'output')
 
-    shaper.accept({ kind: 'correction', text: 'SELECT * FROM books' })
+    shaper.accept('SELECT * FROM books')
 
     const output = shaper.shadowRoot?.querySelector('output')
     expect(output?.textContent).toBe('SELECT * FROM books')

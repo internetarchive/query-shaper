@@ -32,7 +32,7 @@ describe('QueryShaper popup', () => {
 
     shaper.dispatchEvent(
       new CustomEvent('query-shaper-suggestions', {
-        detail: { suggestions: [{ kind: 'correction', text: 'climate change' }] },
+        detail: { suggestions: ['climate change'] },
       }),
     )
 
@@ -46,12 +46,7 @@ describe('QueryShaper popup', () => {
 
     shaper.dispatchEvent(
       new CustomEvent('query-shaper-suggestions', {
-        detail: {
-          suggestions: [
-            { kind: 'correction', text: 'climate change' },
-            { kind: 'expansion', text: 'global warming' },
-          ],
-        },
+        detail: { suggestions: ['climate change', 'global warming'] },
       }),
     )
 
@@ -71,7 +66,7 @@ describe('QueryShaper popup', () => {
     })
     shaper.dispatchEvent(
       new CustomEvent('query-shaper-suggestions', {
-        detail: { suggestions: [{ kind: 'correction', text: 'climate change' }] },
+        detail: { suggestions: ['climate change'] },
       }),
     )
 
@@ -85,7 +80,7 @@ describe('QueryShaper popup', () => {
 
     shaper.dispatchEvent(
       new CustomEvent('query-shaper-suggestions', {
-        detail: { suggestions: [{ kind: 'correction', text: 'climate change' }] },
+        detail: { suggestions: ['climate change'] },
       }),
     )
 
@@ -94,29 +89,24 @@ describe('QueryShaper popup', () => {
     expect(input.hasAttribute('aria-controls')).toBe(false)
   })
 
-  it('groups rendered options by kind, in kind order', () => {
+  it('renders options in the order the suggestions array provides, with no grouping', () => {
     const { shaper } = mount()
 
     shaper.dispatchEvent(
       new CustomEvent('query-shaper-suggestions', {
-        detail: {
-          suggestions: [
-            { kind: 'expansion', text: 'global warming' },
-            { kind: 'correction', text: 'climate change' },
-            { kind: 'completion', text: 'new york' },
-            { kind: 'expression', text: 'title:climate', fields: [] },
-          ],
-        },
+        detail: { suggestions: ['global warming', 'climate change', 'new york', 'title:climate'] },
       }),
     )
 
-    const groups = shaper.shadowRoot?.querySelectorAll('[part="option-group"]')
-    expect(groups).toHaveLength(4)
-    expect(groups?.[0]?.getAttribute('data-kind')).toBe('correction')
-    expect(groups?.[1]?.getAttribute('data-kind')).toBe('completion')
-    expect(groups?.[2]?.getAttribute('data-kind')).toBe('expansion')
-    expect(groups?.[3]?.getAttribute('data-kind')).toBe('expression')
-    expect(groups?.[0]?.querySelector('[role="option"]')?.textContent).toBe('climate change')
+    expect(shaper.shadowRoot?.querySelectorAll('[part="option-group"]')).toHaveLength(0)
+    const options = shaper.shadowRoot?.querySelectorAll('[role="option"]')
+    expect(options).toHaveLength(4)
+    expect(Array.from(options ?? []).map((o) => o.textContent)).toEqual([
+      'global warming',
+      'climate change',
+      'new york',
+      'title:climate',
+    ])
   })
 
   it('accepts the clicked suggestion', () => {
@@ -124,12 +114,7 @@ describe('QueryShaper popup', () => {
 
     shaper.dispatchEvent(
       new CustomEvent('query-shaper-suggestions', {
-        detail: {
-          suggestions: [
-            { kind: 'correction', text: 'climate change' },
-            { kind: 'expansion', text: 'global warming' },
-          ],
-        },
+        detail: { suggestions: ['climate change', 'global warming'] },
       }),
     )
 
@@ -143,7 +128,7 @@ describe('QueryShaper popup', () => {
     const { shaper, input } = mount()
     shaper.dispatchEvent(
       new CustomEvent('query-shaper-suggestions', {
-        detail: { suggestions: [{ kind: 'correction', text: 'one' }] },
+        detail: { suggestions: ['one'] },
       }),
     )
 
@@ -160,7 +145,7 @@ describe('QueryShaper popup', () => {
     const { shaper } = mount()
     shaper.dispatchEvent(
       new CustomEvent('query-shaper-suggestions', {
-        detail: { suggestions: [{ kind: 'correction', text: 'one' }] },
+        detail: { suggestions: ['one'] },
       }),
     )
 
@@ -176,7 +161,7 @@ describe('QueryShaper popup', () => {
 
     shaper.dispatchEvent(
       new CustomEvent('query-shaper-suggestions', {
-        detail: { suggestions: [{ kind: 'correction', text: 'climate change' }] },
+        detail: { suggestions: ['climate change'] },
       }),
     )
 
@@ -188,7 +173,7 @@ describe('QueryShaper popup', () => {
     const { shaper, input } = mount()
     shaper.dispatchEvent(
       new CustomEvent('query-shaper-suggestions', {
-        detail: { suggestions: [{ kind: 'correction', text: 'climate change' }] },
+        detail: { suggestions: ['climate change'] },
       }),
     )
 
@@ -202,12 +187,7 @@ describe('QueryShaper popup', () => {
     const { shaper, input } = mount()
     shaper.dispatchEvent(
       new CustomEvent('query-shaper-suggestions', {
-        detail: {
-          suggestions: [
-            { kind: 'correction', text: 'one' },
-            { kind: 'correction', text: 'two' },
-          ],
-        },
+        detail: { suggestions: ['one', 'two'] },
       }),
     )
 
@@ -224,12 +204,7 @@ describe('QueryShaper popup', () => {
     const { shaper, input } = mount()
     shaper.dispatchEvent(
       new CustomEvent('query-shaper-suggestions', {
-        detail: {
-          suggestions: [
-            { kind: 'correction', text: 'one' },
-            { kind: 'correction', text: 'two' },
-          ],
-        },
+        detail: { suggestions: ['one', 'two'] },
       }),
     )
 
@@ -244,7 +219,7 @@ describe('QueryShaper popup', () => {
     const { shaper, input } = mount()
     shaper.dispatchEvent(
       new CustomEvent('query-shaper-suggestions', {
-        detail: { suggestions: [{ kind: 'correction', text: 'one' }] },
+        detail: { suggestions: ['one'] },
       }),
     )
 
@@ -259,7 +234,7 @@ describe('QueryShaper popup', () => {
     const { shaper, input } = mount()
     shaper.dispatchEvent(
       new CustomEvent('query-shaper-suggestions', {
-        detail: { suggestions: [{ kind: 'correction', text: 'one' }] },
+        detail: { suggestions: ['one'] },
       }),
     )
 

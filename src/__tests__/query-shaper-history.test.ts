@@ -7,15 +7,15 @@ describe('QueryShaper History', () => {
     localStorage.clear()
   })
 
-  it('records an accepted fill suggestion, with its kind and originating Search Text, to localStorage under the Target id', () => {
+  it('records an accepted fill suggestion, with its originating Search Text, to localStorage under the Target id', () => {
     const { shaper, input } = mount()
     input.value = 'climat chnge'
 
-    shaper.accept({ kind: 'correction', text: 'climate change' })
+    shaper.accept('climate change')
 
     const stored = JSON.parse(localStorage.getItem('query-shaper:history:search') ?? '[]')
     expect(stored).toEqual([
-      { searchText: 'climat chnge', suggestion: 'climate change', kind: 'correction', timestamp: expect.any(Number) },
+      { searchText: 'climat chnge', suggestion: 'climate change', timestamp: expect.any(Number) },
     ])
   })
 
@@ -24,12 +24,12 @@ describe('QueryShaper History', () => {
     shaper.setAttribute('history-key', 'shared-bucket')
     input.value = 'climat chnge'
 
-    shaper.accept({ kind: 'correction', text: 'climate change' })
+    shaper.accept('climate change')
 
     expect(localStorage.getItem('query-shaper:history:search')).toBeNull()
     const stored = JSON.parse(localStorage.getItem('query-shaper:history:shared-bucket') ?? '[]')
     expect(stored).toEqual([
-      { searchText: 'climat chnge', suggestion: 'climate change', kind: 'correction', timestamp: expect.any(Number) },
+      { searchText: 'climat chnge', suggestion: 'climate change', timestamp: expect.any(Number) },
     ])
   })
 
@@ -38,31 +38,31 @@ describe('QueryShaper History', () => {
     shaper.setAttribute('max-history', '2')
 
     input.value = 'one search'
-    shaper.accept({ kind: 'correction', text: 'one' })
+    shaper.accept('one')
     input.value = 'two search'
-    shaper.accept({ kind: 'correction', text: 'two' })
+    shaper.accept('two')
     input.value = 'three search'
-    shaper.accept({ kind: 'correction', text: 'three' })
+    shaper.accept('three')
 
     const stored = JSON.parse(localStorage.getItem('query-shaper:history:search') ?? '[]')
     expect(stored).toEqual([
-      { searchText: 'two search', suggestion: 'two', kind: 'correction', timestamp: expect.any(Number) },
-      { searchText: 'three search', suggestion: 'three', kind: 'correction', timestamp: expect.any(Number) },
+      { searchText: 'two search', suggestion: 'two', timestamp: expect.any(Number) },
+      { searchText: 'three search', suggestion: 'three', timestamp: expect.any(Number) },
     ])
   })
 
   it('clears existing entries and stops recording once max-history is set to 0', () => {
     const { shaper } = mount()
-    shaper.accept({ kind: 'correction', text: 'one' })
+    shaper.accept('one')
     expect(localStorage.getItem('query-shaper:history:search')).not.toBeNull()
 
     shaper.setAttribute('max-history', '0')
-    shaper.accept({ kind: 'correction', text: 'two' })
+    shaper.accept('two')
 
     expect(localStorage.getItem('query-shaper:history:search')).toBeNull()
   })
 
-  it('records the current Search Text when the Target form is submitted natively, with kind "submit"', () => {
+  it('records the current Search Text when the Target form is submitted natively', () => {
     const { input } = mount()
     const form = document.createElement('form')
     form.appendChild(input)
@@ -77,13 +77,12 @@ describe('QueryShaper History', () => {
       {
         searchText: 'manually typed query',
         suggestion: 'manually typed query',
-        kind: 'submit',
         timestamp: expect.any(Number),
       },
     ])
   })
 
-  it('records exactly one entry when Accept triggers action=submit (no double-count), preserving the original Search Text and kind', () => {
+  it('records exactly one entry when Accept triggers action=submit (no double-count), preserving the original Search Text', () => {
     const { shaper, input } = mount()
     const form = document.createElement('form')
     form.appendChild(input)
@@ -92,11 +91,11 @@ describe('QueryShaper History', () => {
     shaper.setAttribute('action', 'submit')
     input.value = 'climat chnge'
 
-    shaper.accept({ kind: 'correction', text: 'climate change' })
+    shaper.accept('climate change')
 
     const stored = JSON.parse(localStorage.getItem('query-shaper:history:search') ?? '[]')
     expect(stored).toEqual([
-      { searchText: 'climat chnge', suggestion: 'climate change', kind: 'correction', timestamp: expect.any(Number) },
+      { searchText: 'climat chnge', suggestion: 'climate change', timestamp: expect.any(Number) },
     ])
   })
 })

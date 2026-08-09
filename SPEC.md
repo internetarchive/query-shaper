@@ -29,8 +29,9 @@ attribute value is JSON-parsed first; if that fails, treated as a free-form
 description string (e.g. `"title, author, language:iso-639-1, date (allowed
 patterns YYYY[-MM[-DD]]), categories (comma-separated list)"`). The parsed
 JSON form is a bare array of field descriptors. The `.fields` property
-always wins when both are set. Absent entirely → only Correction,
-Completion, and Expansion suggestions are generated; no Expression.
+always wins when both are set. Absent entirely → the model is never told
+about any fields; a Suggestion that references one anyway is dropped
+rather than shown (see "Generation flow" below).
 
 **`base`** (attribute, optional): the root URL that `format="url-params"`
 optionally composes a full URL onto instead of rendering a bare query
@@ -42,17 +43,18 @@ Defaults, when absent, to the current document's URL with the query string
 and fragment stripped (`new URL(document.baseURI)` with `.search`/`.hash`
 cleared).
 
-**`format`** (attribute): a built-in preset name telling query-shaper how an
-Expression's rendered text is arrived at:
+**`format`** (attribute): a built-in preset name telling query-shaper how to
+render a Suggestion's underlying field/value structure for a specific
+backend. This is purely a rendering target — the model always writes every
+Suggestion as Lucene-style text regardless of `format` (see "Generation
+flow" below); query-shaper parses that text once and renders it per the
+configured preset:
 
-- `lucene` — `field:value` tokens, space-separated, boolean operators/grouping;
-  a field/value pair with no `field` renders as a bare, unscoped term (Lucene
-  itself allows mixing bare terms with fielded clauses in one query, e.g.
-  `climate change title:"policy"`). A multi-word **fielded** value is always
-  quoted (`title:"climate change"`) — query-shaper adds the quotes itself
-  deterministically rather than relying on the model to remember to, since
-  that's proven unreliable in practice; a bare multi-word term is left
-  unquoted, since that's normal, unscoped search-box input.
+- `lucene` — the model's own text is used verbatim, since it's already
+  meant to be Lucene syntax; there's no separate rendering step to apply.
+  `field:value` tokens, space-separated, boolean operators; a bare,
+  unscoped term mixes freely with fielded clauses in one query (e.g.
+  `climate change title:"policy"`), matching real Lucene.
 - `simple-query-string` — the classic `+required -excluded "exact phrase"`
   prefix-operator style: `+` marks a term required, `-` marks one excluded,
   no prefix means optional/should-match, and quoted values are preserved as
@@ -62,9 +64,8 @@ Expression's rendered text is arrived at:
   field-scoped terms (`+title:foo`) are supported but secondary. Since
   quoting means "exact phrase" here — not just a fielded-value disambiguator
   like in `lucene` — a multi-word value is quoted whether bare or fielded,
-  same deterministic rule as `lucene`. Either format leaves an
-  already-quoted value (the model quoted it itself) alone rather than
-  double-quoting it.
+  same deterministic rule query-shaper applies when re-rendering the
+  parsed tuples, regardless of how the model itself originally quoted them.
 - `url-params` — field/value pairs rendered as URL query parameters. When a
   **`base`** attribute is set, the rendered text is the full URL (`base` +
   `?` + the query string) rather than a bare query string; when `base` is
@@ -101,11 +102,11 @@ matches, `.textContent` otherwise. Absent → defaults to an `<output>` element
 query-shaper renders in its own Shadow DOM, in the same popup container the
 downloadable-status message uses.
 
-**`max-suggestions`** (attribute): global cap on total suggestions shown
-across all kinds combined. Sensible built-in per-kind defaults apply
-underneath (e.g. up to 3 Expression / 2 Expansion / 2 Completion / 1
-Correction); this attribute only trims the total, it doesn't expose
-per-kind knobs yet.
+**`max-suggestions`** (attribute): cap on the total number of Suggestions
+returned, defaulting to 5. Enforced twice: as `maxItems` on the response
+schema (a structural constraint on the model's own output) and again in
+code after parsing/filtering (never fully trust a model to honor a
+schema constraint — see "Generation flow" below).
 
 **`max-history`** (attribute): cap on stored History entries, and on how many
 are fed back into generation as context. `0` disables History — turns off
@@ -117,16 +118,15 @@ partition key for History. Defaults to the Target's `id` (always available,
 since `for` requires one) — set this only when multiple instances should
 deliberately _share_ one History.
 
-Each stored entry is `{ searchText, suggestion, kind, timestamp }` — the
-*original* Search Text, the Suggestion text that was Accepted for it, that
-Suggestion's `kind`, and a `timestamp` (epoch ms) kept for debugging only,
-never fed into a prompt. For a plain form submit with no Suggestion
-involved, `searchText` and `suggestion` are the same value and `kind` is
-`"submit"`. Storing the pairing, not just the final text, is what makes
-History function as few-shot context rather than a flat log: the model can
-see both what the user meant (the original text) and what kind of answer,
-in what shape, has worked for them recently — not merely a list of past
-queries with no signal about which parts of them were actually useful.
+Each stored entry is `{ searchText, suggestion, timestamp }` — the
+*original* Search Text, the Suggestion text that was Accepted for it, and a
+`timestamp` (epoch ms) kept for debugging only, never fed into a prompt.
+For a plain form submit with no Suggestion involved, `searchText` and
+`suggestion` are the same value. Storing the pairing, not just the final
+text, is what makes History function as few-shot context rather than a
+flat log: the model can see both what the user meant (the original text)
+and what has actually worked for them recently — not merely a list of past
+queries with no signal about which parts of them were useful.
 
 Reads are served from an in-memory cache, primed once from localStorage on
 first access rather than on every generation call — that's the hot path,
@@ -164,38 +164,61 @@ suggestion, action }`
 ### Suggestion shape
 
 ```ts
-type Suggestion =
-  | { kind: "correction"; text: string }
-  | { kind: "completion"; text: string }
-  | { kind: "expansion"; text: string }
-  | {
-      kind: "expression";
-      text: string; // rendered per Format
-      fields?: Array<{ field?: string; value: string; operator?: string }>;
-    };
+type Suggestion = string;
 ```
 
-An entry with no `field` is a bare, unscoped term rather than a field
-filter — the primary case for `simple-query-string`, a secondary one for
-`lucene`. `operator`'s meaning is Format-specific: `AND`/`OR` for `lucene`,
-`+`/`-` for `simple-query-string`.
+Every Suggestion is a single string, always written by the model as if it
+were a Lucene-style query (see "Generation flow" below) — a plain phrase
+for a simple rewording, or `field:value` syntax (with `AND`/`OR`/`+`/`-`,
+quoted phrases, and `[X TO Y]` ranges) for a fielded/boolean reformulation.
+There's no `kind` tag and no separate structured-tuple channel on the
+public type: query-shaper parses that Lucene-style text internally into
+`{ field?, value, operator? }` tuples (an entry with no `field` is a bare,
+unscoped term) and re-renders it per the configured Format before it ever
+reaches `query-shaper-suggestions` — see the "Suggestion parsing and
+rendering" note below for exactly what's parsed, downgraded, or dropped.
 
-`fields` is optional on the type because a tuple-rendering Format can still
-fall back to the model's raw `text` with no decomposition — see the
-no-`fields`-fallback note under Generation flow below.
+This collapses what were previously four separate Suggestion kinds
+(Correction, Completion, Expansion, Expression) into one undifferentiated
+string. That's a deliberate simplification, not an oversight: extensive
+live testing found the model repeatedly crossing the boundaries between
+kinds — a Completion firing on already-complete text, a Correction doing
+Expansion's job, near-duplicate Suggestions differing only in which kind
+label was attached — and no amount of instruction-wording made the
+distinction reliable. Removing the boundary removes the failure mode
+structurally: there's no kind left for the model to get wrong.
 
-The runtime shape is guaranteed to match this type regardless of what the
-model actually returns: the response schema declares `fields` on every
-item regardless of `kind` (it isn't a discriminated union per kind), so
-nothing at the schema level stops the model from attaching a stray
-`fields` to a correction/completion/expansion item — observed happening in
-practice. A non-expression Suggestion is always reconstructed as exactly
-`{ kind, text }` before being emitted, discarding anything else the model
-attached.
+### Suggestion parsing and rendering
 
-Every Suggestion the model returns already has typo corrections folded into
-its basis text (an Expression never faithfully encodes a typo the model
-also flagged as a Correction) — see the unified-generation note below.
+`lucene-parser.ts` covers a deliberately restricted subset of real Lucene
+syntax — chosen to match what the model realistically writes and what
+query-shaper's Formats can faithfully represent, not full Lucene:
+
+- **Gate**: a string with no field:value colon, no standalone `AND`/`OR`/
+  `NOT`, no leading `+`/`-`, and no more than one quoted segment is treated
+  as one opaque bare phrase and never tokenized — this is what keeps a
+  plain rewording ("the eiffel tower in paris") from being mis-split into
+  several independent bare terms once rendered for a tuple-based Format.
+- **Core grammar** (renders losslessly for every Format): bare terms,
+  quoted phrases, `field:value`, `AND`/`OR`/`+`/`-`/`NOT`, implicit
+  (operator-less) juxtaposition.
+- **Extended grammar** (parsed, then downgraded or dropped per Format):
+  parenthesized groups (flattened if every clause inside shares one
+  operator and none is itself nested; dropped otherwise), field-scoped
+  groups (`category:(a OR b)`), ranges (`field:[X TO Y]`, dropped — no
+  Format has a way to represent one), wildcards (kept as literal
+  characters), fuzzy (`~`/`~N`, stripped), boost (`^N`, stripped).
+- **Failure**: a syntax error (unterminated quote/range/paren, a field
+  with no value) drops the whole Suggestion rather than showing broken
+  text.
+
+For `format="lucene"`, a Suggestion that passes the parseability check is
+rendered **verbatim** — there's no reconstruction step, since the model's
+text is already meant to be Lucene. Every other Format (`url-params`,
+`simple-query-string`, a custom `.format` function) renders the parsed
+`{ field?, value, operator? }` tuples through the same deterministic
+rendering rules as before (quoting a multi-word value, applying an
+operator's Format-specific meaning, etc.).
 
 ## Generation flow
 
@@ -205,7 +228,7 @@ also flagged as a Correction) — see the unified-generation note below.
      parent/child hierarchy (ADR-0004): the page-wide shared "grandparent"
      base session is created once (seeded with a generic, Fields-agnostic
      system instruction via `initialPrompts`); this instance's "parent" is
-     `clone()`d from it and primed once with this instance's Fields/Format
+     `clone()`d from it and primed once with this instance's Fields
      description via `append()`. The parent is reused for this instance
      going forward — but never prompted directly; see step 2.
    - `downloadable` → (unless `headless`) show an unobtrusive inline message
@@ -229,90 +252,62 @@ also flagged as a Correction) — see the unified-generation note below.
    falling back to `en` when unset or not currently one of the model's
    supported languages (`de`, `en`, `es`, `fr`, `ja`).
 2. **Debounced input** (~400ms pause — a starting point, expected to need
-   empirical tuning against real model latency): if Fields/Format changed
+   empirical tuning against real model latency): if Fields changed
    imperatively since the parent was primed, rebuild it first (destroy the
    stale one, clone fresh from the grandparent, re-`append()`). Then clone a
-   disposable "child" from the parent and build **one** prompt call — now
-   just History (most recent entries up to `max-history`) and the current
-   Search Text, since the generic instruction and Fields/Format both live
-   upstream in the grandparent/parent already. Use `responseConstraint` with
-   a JSON Schema requiring an array of Suggestion objects, already tagged by
-   kind and pre-sorted by the model. No staged/sequential correction-first
-   pass — one call, one response, avoiding both the latency and the
-   response-merging complexity a staged pipeline would add. The child is
-   `destroy()`ed once the call settles (success, failure, or abort) — it
-   only ever exists for this one query.
+   disposable "child" from the parent and build **one** prompt call — just
+   History (most recent entries up to `max-history`) and the current Search
+   Text, since the generic instruction and Fields both live upstream in the
+   grandparent/parent already (the model is never told the Format — see
+   below). Use `responseConstraint` with a JSON Schema requiring a flat
+   array of strings, capped at `max-suggestions` via `maxItems`. No staged/
+   sequential pass — one call, one response. The child is `destroy()`ed
+   once the call settles (success, failure, or abort) — it only ever exists
+   for this one query.
 
-   The schema alone doesn't reliably get the model to produce more than one
-   Suggestion — the (now upstream, grandparent-level) instruction explicitly
-   spells out the per-kind caps ("up to 1 correction... up to 2
-   completions... up to 2 expansions... up to 3 expressions... as its own
-   separate item") and instructs it never to invent extra properties. The schema itself sets `additionalProperties:
-   false` at every object level, since the model has been observed inventing
-   sibling properties (e.g. a `fields_expanded` next to `fields`) to smuggle
-   in content it didn't fit into the declared shape, which then gets
-   silently dropped.
+   The upstream instruction carries everything the schema can't enforce
+   structurally: this is a keyword search system, not a chat assistant —
+   every Suggestion must read like something typed into a search box, never
+   a descriptive sentence, an explanation, or a list, and no
+   sentence-ending punctuation; up to `max-suggestions` reasonable
+   alternative or refined queries, which may fix a typo, complete an
+   unfinished phrase, broaden with related terms, or (when Fields are
+   described) reformulate as a fielded/boolean query, in any mix, never
+   labeled by which of these a given one is; each written as if it were a
+   real Lucene query — a plain phrase for a rewording, `field:value`/
+   `AND`/`OR`/`+`/`-`/`[X TO Y]` for a fielded/boolean one, using only the
+   described Fields, never inventing one that isn't described; never a
+   Suggestion identical to the Search Text; each as its own separate
+   string, never bundling more than one idea into one string with a comma
+   or "and".
 
-   The instruction also states, up front, that this is a keyword search
-   system, not a chat assistant: every Suggestion's `text` must read like
-   something typed into a search box — short keywords or a phrase, never a
-   descriptive sentence, an explanation, or a list, and no sentence-ending
-   punctuation. It draws an explicit line between Correction and Completion
-   (Correction only fixes a typo in an already-complete phrase; it must
-   never be used to fill in a missing word, that's Completion's job — the
-   two were observed colliding in practice, producing near-duplicate
-   Suggestions differing only in casing), and tells the model that each
-   Expansion is a single, standalone alternative — multiple ideas must be
-   returned as separate Suggestions, never bundled into one item's `text`
-   with a comma or "and" (also observed happening in practice).
+   This replaced an earlier design that gave the model an explicit `kind`
+   enum (Correction/Completion/Expansion/Expression) and a structured
+   `fields` array to fill in for the fielded case. Across several rounds of
+   live testing and instruction tightening, that design kept surfacing the
+   same underlying problem in new shapes: the model crossing kind
+   boundaries (a Completion firing on already-complete text, a Correction
+   doing Expansion's job, near-duplicate Suggestions differing only by
+   which kind label was attached) and inventing unsupported syntax
+   (comparison operators the schema's `operator` field was never meant to
+   hold) whenever a query genuinely couldn't be decomposed into the tuple
+   shape it was asked for. Collapsing to one plain Lucene-style string per
+   Suggestion — a syntax the model has seen far more of in training than
+   any bespoke JSON tuple shape — removes the kind-boundary failure mode
+   structurally rather than patching it further; see "Suggestion parsing
+   and rendering" above for how query-shaper decomposes that string itself
+   instead of trusting the model to supply pre-decomposed tuples.
 
-   The same live testing surfaced two further quirks, addressed the same
-   way. First, the Correction/Completion line wasn't the only one the model
-   crossed: it also produced Completions for search text that already read
-   as complete (once even returning text *shorter* than the input, which
-   isn't a completion by any definition) — the instruction now explicitly
-   says Completion never applies to already-complete text, and that a
-   Completion's text must start with the Search Text exactly as given,
-   only appending the missing ending, never rewording or dropping what was
-   already typed (observed happening: `"men are from mars women are from"`
-   completed to `"mars women are from Earth"`, silently dropping the first
-   two words). Second, `operator` was never meant to hold anything but
-   `AND`/`OR`/`+`/`-`, but nothing told the model that — faced with a
-   comparison the available Fields can't express (`"electronics under
-   $50"`), it invented `>=`/`<` as operator values and, in one observed
-   case, returned the same field twice with conflicting values and leaked
-   a field's own name into its `operator` slot, producing an unusable
-   rendered string. The instruction and the `operator` schema description
-   now both state the closed set of legal values explicitly and tell the
-   model to pick a single representative value (no operator) rather than
-   invent unsupported comparison syntax when a range can't be expressed.
-
-   The instruction and schema descriptions both tell the model that `fields`
-   is the primary channel for an Expression and that writing directly into
-   `text` is a last resort, reserved for search text that truly can't be
-   decomposed into tuples — a distinction that only became sayable this
-   plainly once `sql` (where writing `text` directly was the *only* channel)
-   was removed; see ADR-0006. Both also frame the decomposition step itself
-   as "think of it as if you were writing a Lucene-style query, then
-   decompose that into tuples" — a cheap prompt-only experiment, not an
-   architecture change: it primes the model with a syntax it has seen far
-   more of in training than the bespoke `fields` tuple shape, while still
-   emitting the same schema-guaranteed `fields` array as before, no parser
-   involved. If this measurably helps, the next step under consideration
-   goes further still — having the model return the Lucene-style text
-   directly and parsing it into tuples ourselves, removing the
-   tuple-authoring ask from the model entirely — prototyped on a branch
-   first, promoted via its own ADR/spec/tickets only if it proves out. If
-   the model still returns an Expression with
-   no `fields` at all but does provide `text`, that `text` is used verbatim
-   as a fallback rather than rendering an empty, invisible Suggestion from
-   an empty tuple set. This is a deliberate tradeoff, not an oversight:
-   query-shaper's Formats are meant to guarantee code-rendered, correct
-   syntax, and this fallback path forfeits that guarantee — the model can
-   write syntactically wrong text here (e.g. `year=2020` instead of
-   `year:2020` for `lucene`), unvalidated and uncorrected. Showing it anyway
-   was chosen over dropping it, on the view that a possibly-flawed
-   Suggestion beats silently offering fewer than the model attempted.
+   A string that fails to parse as valid Lucene-style syntax, or that
+   references a field despite none being declared, is dropped entirely
+   rather than shown broken or untrustworthy — a smaller set of
+   trustworthy Suggestions beats one with an unusable entry in it. `format`
+   is the one exception: a Suggestion whose text merely doesn't parse as
+   *structured* (no recognizable field/operator syntax at all) is treated
+   as a single opaque phrase and shown as-is for `format="lucene"`
+   regardless — the model can still write something syntactically odd
+   there (e.g. `year=2020` instead of `year:2020`) and see it rendered
+   unvalidated, since `lucene` is verbatim passthrough by design.
 
    Debouncing only cancels a *pending* timer, not an already-started model
    call — real on-device latency means a call from an earlier pause can
@@ -331,13 +326,12 @@ also flagged as a Correction) — see the unified-generation note below.
    supports) rather than merely ignored, so the device stops spending
    compute on a call whose result is about to be discarded anyway.
 
-   A Suggestion whose rendered `text` is identical (after trimming) to the
-   current Search Text is dropped before rendering — every Suggestion is
-   meant to be a better alternate, and echoing the input back verbatim
-   isn't one, regardless of kind.
-3. **Render**: grouped by kind (Correction / Completion / Expansion /
-   Expression), up to `max-suggestions` total — unless `headless`, in which
-   case only `query-shaper-suggestions` fires.
+   A rendered Suggestion identical (after trimming) to the current Search
+   Text is dropped before rendering — every Suggestion is meant to be a
+   better alternate, and echoing the input back verbatim isn't one.
+3. **Render**: a flat list in the order the model returned them (already
+   instructed to sort by relevance), up to `max-suggestions` total —
+   unless `headless`, in which case only `query-shaper-suggestions` fires.
 4. **Accept**: apply `action` (fill the Target / submit its form / navigate
    via the `opensearch` template / fill the Target and also write to
    `destination` / do nothing beyond the event below); emit
@@ -352,8 +346,8 @@ also flagged as a Correction) — see the unified-generation note below.
    falls back to recording directly, since no submit event will ever fire.
 6. **Context overflow**: if the combined prompt risks exceeding the model's
    context window, proactively trim the _oldest_ History entries first
-   (before touching Fields/Format/Search Text) and retry, rather than
-   surfacing an error for something the user configured a number for.
+   (before touching Fields/Search Text) and retry, rather than surfacing
+   an error for something the user configured a number for.
 7. **Transient model errors**: a `responseConstraint` call can fail with a
    generic `UnknownError` that isn't tied to any specific schema shape —
    observed to be intermittent (the same schema succeeds on one call and
@@ -379,15 +373,15 @@ inline result-fetching in any case.
 3. **Wayback Machine collection-search**, `gov` collection — Fields:
    `language`, `site`, `year`, `pubdate` (the collection itself, e.g. `gov`,
    is fixed per-instance configuration baked into the `template`, never a
-   Field an Expression varies — collections have their own namespaced
+   Field a Suggestion varies — collections have their own namespaced
    pages today, not a single unified search box). Format: `lucene`; `template`:
    `https://web.archive.org/collection-search/gov/{searchTerms}` (placeholder
    in a path segment, percent-encoded — OpenSearch templates aren't limited
    to query strings).
 4. **A few generic plain HTML search forms**, each demonstrating one Fields
-   configuration mode: no Fields declared (Correction/Completion/
-   Expansion-only fallback), a free-form text description, an inline JSON
-   schema, and a
+   configuration mode: no Fields declared (plain-rewording Suggestions
+   only, no fielded reformulation), a free-form text description, an
+   inline JSON schema, and a
    custom `.format` render function.
 
 ## Implementation defaults (not separately grilled — flagging, not asking)

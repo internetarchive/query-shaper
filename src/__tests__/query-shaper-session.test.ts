@@ -169,7 +169,7 @@ describe('QueryShaper session lifecycle', () => {
     const [systemPrompt] = createOptions.initialPrompts
     expect(createOptions.initialPrompts).toHaveLength(1)
     expect(systemPrompt.role).toBe('system')
-    expect(systemPrompt.content).toContain('correction')
+    expect(systemPrompt.content).toContain('Lucene')
   })
 
   it('does not accumulate duplicate listeners across a disconnect/reconnect cycle', async () => {

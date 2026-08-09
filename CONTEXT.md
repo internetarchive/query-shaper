@@ -16,34 +16,23 @@ via its `for` attribute (the target's `id`).
 _Avoid_: Bound input, host input, search field
 
 **Suggestion**:
-A candidate improvement to the Search Text offered to the user. Every Correction,
-Completion, Expansion, and Expression is a kind of Suggestion.
+A candidate improvement to the Search Text offered to the user, always a
+single string the model writes as if it were a Lucene-style query — a plain
+phrase for a simple rewording, or `field:value` syntax for a fielded/boolean
+reformulation (an Expression, below). `<query-shaper>` decomposes that text
+into field/value/operator tuples and re-renders it for the Target's actual
+Format. A Suggestion isn't labeled or capped by *what kind* of improvement
+it represents (fixing a typo, finishing an unfinished phrase, broadening
+with related terms, reformulating as a fielded query) — the model mixes
+whichever it judges useful for a given Search Text, in one flat list.
 _Avoid_: Recommendation, candidate
 
-**Correction**:
-A Suggestion that fixes a likely typo or misspelling in the Search Text.
-_Avoid_: Typo fix, spell check
-
-**Completion**:
-A Suggestion that finishes the Search Text when it looks like an unfinished
-word or phrase — the same intent, just completed, not corrected or
-broadened (e.g. `new y` → `new york`). Distinct from Expansion, which
-assumes the Search Text is already a complete thought and adds related
-terms around it, not more letters to the same one; the test is whether the
-Search Text reads as truncated mid-word/mid-phrase (Completion) or as a
-finished thought that could simply use company (Expansion).
-_Avoid_: Autocomplete, prefix match, suggestion
-
-**Expansion**:
-A Suggestion that broadens the Search Text with related terms, synonyms, or
-alternate phrasings to widen recall.
-_Avoid_: Query expansion, synonym suggestion
-
 **Expression**:
-A Suggestion that reformulates the Search Text as a fielded and/or boolean query
-(e.g. `title:"climate change" AND year:2020..2023`), which may mix field
-filters with bare, unscoped terms. Field filters, bare terms, and boolean
-operators are all part of this single concept, not separate suggestion kinds.
+The shape a Suggestion's text takes when it contains fielded and/or boolean
+query structure (e.g. `title:"climate change" AND year:2020`), mixing field
+filters with bare, unscoped terms and boolean operators — as opposed to a
+plain rewording with no such structure. Not a separate kind of Suggestion,
+just a description of what its Lucene-style text looks like once parsed.
 _Avoid_: Structured query, fielded query, boolean query, advanced query
 
 **Accept**:
@@ -68,17 +57,20 @@ _Avoid_: Output target, sink, render target
 
 **Fields**:
 The description of what fields exist in the Target's backend, enabling
-Expression suggestions. Declared as free-form text, inline JSON, or an
-imperative property. Without Fields, only Correction, Completion, and
-Expansion Suggestions are offered.
+Expression-shaped Suggestions. Declared as free-form text, inline JSON, or
+an imperative property. Without Fields, the model is never told about any
+fields to reformulate against, and a Suggestion that references one anyway
+is dropped rather than shown.
 _Avoid_: Schema, field schema, index schema
 
 **Format**:
-The preset (or custom render function) that tells `<query-shaper>` how an
-Expression's rendered text is arrived at for a specific backend — rendering
-field/value pairs itself as a Lucene-style string, as URL parameters for
-facet-driven backends, or via a custom render function for shapes neither
-preset covers.
+The preset (or custom render function) that tells `<query-shaper>` how a
+Suggestion's underlying field/value structure is rendered for a specific
+backend — as a Lucene-style string, as URL parameters for facet-driven
+backends, or via a custom render function for shapes neither preset covers.
+Purely a rendering target: the model always writes Suggestions in Lucene
+syntax regardless of Format, and `<query-shaper>` re-renders that into
+whichever Format is configured.
 _Avoid_: Syntax, query dialect, query syntax, render mode
 
 **Base**:
@@ -93,11 +85,10 @@ A bounded, recycling record of prior finalized queries, persisted in local
 storage and fed back to the model as few-shot context for future
 Suggestions. Each entry pairs the *original* Search Text with the Suggestion
 that was Accepted for it (or, for a plain form submit with no Suggestion
-involved, the submitted text against itself) and that Suggestion's kind —
-not just the final text alone, since the pairing is what lets the model
-infer both intent (what the user was after) and precedent (what kind of
-Suggestion, and what shape of answer, has worked for them before). Capped
-by a configurable size; a cap of zero disables History entirely.
+involved, the submitted text against itself) — not just the final text
+alone, since the pairing is what lets the model infer intent (what the user
+was after) from precedent (what has worked for them before). Capped by a
+configurable size; a cap of zero disables History entirely.
 _Avoid_: Query history, prior queries, search history
 
 **Headless**:
