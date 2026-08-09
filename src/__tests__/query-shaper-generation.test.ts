@@ -737,6 +737,37 @@ describe('QueryShaper generation', () => {
     expect(suggestionEvents[0]).toEqual([{ kind: 'completion', text: 'new york' }])
   })
 
+  it('strips a stray fields property the model attaches to a non-expression suggestion', async () => {
+    const lm = mockLanguageModel({
+      promptResponse: {
+        suggestions: [
+          { kind: 'correction', text: 'earth', fields: [] },
+          { kind: 'expansion', text: 'venus', fields: [{ field: 'x', value: 'y' }] },
+        ],
+      },
+    })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const suggestionEvents: unknown[] = []
+    shaper.addEventListener('query-shaper-suggestions', (e) => {
+      suggestionEvents.push((e as CustomEvent).detail.suggestions)
+    })
+
+    input.value = 'mars'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
+
+    expect(suggestionEvents[0]).toEqual([
+      { kind: 'correction', text: 'earth' },
+      { kind: 'expansion', text: 'venus' },
+    ])
+  })
+
   it('clones a fresh child per query and destroys it after use, reusing the same primed instance session', async () => {
     const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm

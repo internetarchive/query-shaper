@@ -71,7 +71,8 @@ const GENERIC_INSTRUCTION =
   'one tuple per condition or bare term, using only the described fields; never author the rendered query ' +
   'syntax yourself in "text" — only fall back to plain "text" in the rare case where the search text truly ' +
   'cannot be decomposed into tuples at all. Return each as its own separate item in the suggestions array — ' +
-  'never merge multiple kinds into one item, and never invent extra properties beyond the ones described.'
+  'never merge multiple kinds into one item, never invent extra properties beyond the ones described, and ' +
+  'never include "fields" on a correction/completion/expansion item — that property belongs to expression only.'
 
 // Dev-only visibility into session lifecycle and generation timing — every call site is
 // guarded by import.meta.env.DEV, a compile-time constant Vite replaces and then
@@ -186,7 +187,8 @@ function buildSuggestionsResponseSchema() {
                 'For an expression kind, this is the primary channel: EVERY field/value/operator tuple that ' +
                 'captures the Search Text\'s intent, all in this one array — never invent a second array or a ' +
                 'differently-named property for more of them, and never fall back to writing the query in ' +
-                '"text" unless decomposition is truly impossible.',
+                '"text" unless decomposition is truly impossible. Omit this property entirely for every other ' +
+                'kind — correction/completion/expansion never have fields.',
               items: {
                 type: 'object',
                 properties: {
@@ -593,7 +595,10 @@ export class QueryShaper extends HTMLElement {
       }
       return { kind: 'expression', fields, text: this.#renderFormat(fields) }
     }
-    return raw
+    // Strip any stray properties the model attaches to a non-expression suggestion (e.g. an
+    // empty `fields` array) — the schema declares `fields` on every item regardless of kind,
+    // so nothing prevents the model from including it where it's meaningless.
+    return { kind: raw.kind, text: raw.text }
   }
 
   #renderFormat(fields: FieldValue[]): string {
