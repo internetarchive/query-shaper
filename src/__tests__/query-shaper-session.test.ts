@@ -77,6 +77,27 @@ describe('QueryShaper session lifecycle', () => {
     expect(lm.baseSession.destroy).not.toHaveBeenCalled()
   })
 
+  it('destroys an in-flight child session on disconnect, in addition to its own instance session', async () => {
+    const lm = mockLanguageModel({ availability: 'available' })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const neverResolving = new Promise<string>(() => {})
+    lm.clonedSession.prompt.mockImplementationOnce(() => neverResolving)
+
+    input.value = 'a query'
+    input.dispatchEvent(new Event('input'))
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1), { timeout: 1000 })
+
+    shaper.remove()
+
+    expect(lm.clonedSession.destroy).toHaveBeenCalledTimes(1)
+    expect(lm.instanceSession.destroy).toHaveBeenCalledTimes(1)
+  })
+
   it('does not recheck availability on repeated focuses once a session is established', async () => {
     const lm = mockLanguageModel({ availability: 'available' })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm

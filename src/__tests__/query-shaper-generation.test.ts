@@ -818,6 +818,100 @@ describe('QueryShaper generation', () => {
     expect((errorEvents[0] as { phase: string }).phase).toBe('generate')
   })
 
+  it('destroys the superseded child session immediately when a newer generation starts, without waiting for its prompt() to settle', async () => {
+    vi.useRealTimers()
+    const lm = mockLanguageModel({ availability: 'available' })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    // Neither call ever settles, so the only possible source of a destroy() call is the
+    // proactive supersede-destroy path itself — not either generation's own eventual
+    // `finally` block, which this rules out entirely.
+    lm.clonedSession.prompt.mockImplementation(() => new Promise<string>(() => {}))
+
+    input.value = 'first query'
+    input.dispatchEvent(new Event('input'))
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1), { timeout: 1000 })
+
+    input.value = 'second different query'
+    input.dispatchEvent(new Event('input'))
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(2), { timeout: 1000 })
+
+    await vi.waitFor(() => expect(lm.clonedSession.destroy).toHaveBeenCalledTimes(1), { timeout: 1000 })
+  })
+
+  it('destroys the in-flight child session immediately when the search text is cleared', async () => {
+    vi.useRealTimers()
+    const lm = mockLanguageModel({ availability: 'available' })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const neverResolving = new Promise<string>(() => {})
+    lm.clonedSession.prompt.mockImplementationOnce(() => neverResolving)
+
+    input.value = 'a query'
+    input.dispatchEvent(new Event('input'))
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1), { timeout: 1000 })
+
+    input.value = ''
+    input.dispatchEvent(new Event('input'))
+
+    await vi.waitFor(() => expect(lm.clonedSession.destroy).toHaveBeenCalledTimes(1), { timeout: 1000 })
+  })
+
+  it('destroys the in-flight child a grace period after blur, if no result has arrived yet', async () => {
+    const lm = mockLanguageModel({ availability: 'available' })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const neverResolving = new Promise<string>(() => {})
+    lm.clonedSession.prompt.mockImplementationOnce(() => neverResolving)
+
+    input.value = 'a query'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
+
+    input.dispatchEvent(new Event('blur'))
+    expect(lm.clonedSession.destroy).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(3000)
+    await vi.waitFor(() => expect(lm.clonedSession.destroy).toHaveBeenCalledTimes(1))
+  })
+
+  it('cancels the pending blur-destroy if the field is refocused before the grace period elapses', async () => {
+    const lm = mockLanguageModel({ availability: 'available' })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const neverResolving = new Promise<string>(() => {})
+    lm.clonedSession.prompt.mockImplementationOnce(() => neverResolving)
+
+    input.value = 'a query'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
+
+    input.dispatchEvent(new Event('blur'))
+    await vi.advanceTimersByTimeAsync(1500)
+    input.dispatchEvent(new Event('focus'))
+    await vi.advanceTimersByTimeAsync(3000)
+
+    expect(lm.clonedSession.destroy).not.toHaveBeenCalled()
+  })
+
   it('trims the oldest History entry and retries on context overflow', async () => {
     localStorage.setItem(
       'query-shaper:history:search',

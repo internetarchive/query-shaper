@@ -40,6 +40,7 @@ export type HistoryEntry = {
 }
 
 const DEBOUNCE_MS = 400
+const BLUR_DESTROY_DELAY_MS = 3000
 const DOWNLOAD_PROMPT_DISMISSED_KEY = 'query-shaper:download-prompt-dismissed'
 const MAX_UNKNOWN_ERROR_RETRIES = 2
 const DEFAULT_MAX_SUGGESTIONS = 5
@@ -288,6 +289,21 @@ export class QueryShaper extends HTMLElement {
 
   #debounceTimer: ReturnType<typeof setTimeout> | undefined
 
+  // The disposable per-query child currently in flight, if any. Chrome's on-device engine
+  // only reliably frees itself up for the next call once destroy() is called — merely
+  // aborting a prompt() call's signal is not enough, and leaves the engine serially busy
+  // finishing the discarded computation anyway.
+  #currentChild: LanguageModelSession | undefined
+  #blurDestroyTimer: ReturnType<typeof setTimeout> | undefined
+
+  // `expected`, when given, only destroys if it's still the current child — guards against
+  // double-destroying a child that a later call (supersede, clear, blur) already handled.
+  #destroyCurrentChild(expected?: LanguageModelSession): void {
+    if (expected !== undefined && this.#currentChild !== expected) return
+    this.#currentChild?.destroy()
+    this.#currentChild = undefined
+  }
+
   connectedCallback(): void {
     this.target?.setAttribute('autocomplete', 'off')
     this.target?.addEventListener('focus', this.#onFocus)
@@ -299,6 +315,7 @@ export class QueryShaper extends HTMLElement {
   }
 
   #onFocus = (): void => {
+    clearTimeout(this.#blurDestroyTimer)
     void this.#ensureSession()
   }
 
@@ -312,6 +329,18 @@ export class QueryShaper extends HTMLElement {
 
   #onBlur = (): void => {
     this.#renderSuggestions([])
+    clearTimeout(this.#blurDestroyTimer)
+    if (this.#currentChild) {
+      this.#blurDestroyTimer = setTimeout(() => {
+        devLog(`${this.#tag()} destroying an in-flight session ${BLUR_DESTROY_DELAY_MS}ms after blur with no result yet`)
+        // No newer generation started (that path already destroys via #generateInner), so
+        // bump the id ourselves — this makes the pending prompt()'s eventual AbortError
+        // land on a now-stale id and get silently suppressed by #generate(), the same way a
+        // superseded generation's error already is.
+        this.#generationId++
+        this.#destroyCurrentChild()
+      }, BLUR_DESTROY_DELAY_MS)
+    }
   }
 
   #onSuggestionsEvent = (e: Event): void => {
@@ -389,6 +418,8 @@ export class QueryShaper extends HTMLElement {
     this.target?.removeEventListener('blur', this.#onBlur)
     document.removeEventListener('submit', this.#onDocumentSubmit)
     this.removeEventListener('query-shaper-suggestions', this.#onSuggestionsEvent)
+    clearTimeout(this.#blurDestroyTimer)
+    this.#destroyCurrentChild()
     this.#session?.destroy()
     this.#session = undefined
   }
@@ -441,6 +472,7 @@ export class QueryShaper extends HTMLElement {
       this.#lastRequestedText = undefined
       this.#abortController?.abort('search text cleared')
       this.#abortController = undefined
+      this.#destroyCurrentChild()
       if (id !== this.#generationId) return
       this.dispatchEvent(new CustomEvent('query-shaper-suggestions', { detail: { suggestions: [] } }))
       return
@@ -458,6 +490,7 @@ export class QueryShaper extends HTMLElement {
     if (this.#abortController) {
       devLog(`${this.#tag()} #${id} aborting a superseded in-flight generation`)
       this.#abortController.abort('superseded by a newer generation')
+      this.#destroyCurrentChild()
     }
     const controller = new AbortController()
     this.#abortController = controller
@@ -467,6 +500,7 @@ export class QueryShaper extends HTMLElement {
     const maxSuggestions = Number(this.getAttribute('max-suggestions') ?? DEFAULT_MAX_SUGGESTIONS)
     devLog(`${this.#tag()} #${id} generating for "${trimmed}" (${history.length} History entries)`)
     const child = await this.#session.clone()
+    this.#currentChild = child
     try {
       for (;;) {
         try {
@@ -497,7 +531,7 @@ export class QueryShaper extends HTMLElement {
         }
       }
     } finally {
-      child.destroy()
+      this.#destroyCurrentChild(child)
     }
     const parsed = JSON.parse(raw) as { suggestions: string[] }
     devLog(`${this.#tag()} #${id} raw suggestions from model:`, parsed.suggestions)
