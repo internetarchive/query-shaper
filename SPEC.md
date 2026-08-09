@@ -184,6 +184,15 @@ filter — the primary case for `simple-query-string`, a secondary one for
 fall back to the model's raw `text` with no decomposition — see the
 no-`fields`-fallback note under Generation flow below.
 
+The runtime shape is guaranteed to match this type regardless of what the
+model actually returns: the response schema declares `fields` on every
+item regardless of `kind` (it isn't a discriminated union per kind), so
+nothing at the schema level stops the model from attaching a stray
+`fields` to a correction/completion/expansion item — observed happening in
+practice. A non-expression Suggestion is always reconstructed as exactly
+`{ kind, text }` before being emitted, discarding anything else the model
+attached.
+
 Every Suggestion the model returns already has typo corrections folded into
 its basis text (an Expression never faithfully encodes a typo the model
 also flagged as a Correction) — see the unified-generation note below.
@@ -243,6 +252,19 @@ also flagged as a Correction) — see the unified-generation note below.
    sibling properties (e.g. a `fields_expanded` next to `fields`) to smuggle
    in content it didn't fit into the declared shape, which then gets
    silently dropped.
+
+   The instruction also states, up front, that this is a keyword search
+   system, not a chat assistant: every Suggestion's `text` must read like
+   something typed into a search box — short keywords or a phrase, never a
+   descriptive sentence, an explanation, or a list, and no sentence-ending
+   punctuation. It draws an explicit line between Correction and Completion
+   (Correction only fixes a typo in an already-complete phrase; it must
+   never be used to fill in a missing word, that's Completion's job — the
+   two were observed colliding in practice, producing near-duplicate
+   Suggestions differing only in casing), and tells the model that each
+   Expansion is a single, standalone alternative — multiple ideas must be
+   returned as separate Suggestions, never bundled into one item's `text`
+   with a comma or "and" (also observed happening in practice).
 
    The instruction and schema descriptions both tell the model that `fields`
    is the primary channel for an Expression and that writing directly into

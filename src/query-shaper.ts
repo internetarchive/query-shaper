@@ -62,17 +62,24 @@ const DEFAULT_KIND_CAPS: Record<string, number> = Object.fromEntries(
 )
 
 const GENERIC_INSTRUCTION =
+  'You are a keyword search assistant, not a chat assistant: every suggestion you return must read like ' +
+  'something someone would type into a search box — short keywords or a phrase, never a descriptive sentence, ' +
+  'an explanation, or a list, and no sentence-ending punctuation. ' +
   'Suggest improvements to the search text given in each prompt: up to 1 correction (only if there is a likely ' +
-  'typo or misspelling), up to 2 completions (only if the search text looks like an unfinished word or phrase — ' +
-  'each one a distinct, plausible way to finish it, e.g. "new y" -> "new york", not a broader or related term, ' +
-  'just the same one, finished), up to 2 expansions (related terms, synonyms, or alternate ' +
-  'phrasings for search text that is already a complete thought), and — if available fields are described for ' +
-  'you — up to 3 expressions: decompose the search text into field/value/operator tuples in the "fields" array, ' +
-  'one tuple per condition or bare term, using only the described fields; never author the rendered query ' +
-  'syntax yourself in "text" — only fall back to plain "text" in the rare case where the search text truly ' +
-  'cannot be decomposed into tuples at all. Return each as its own separate item in the suggestions array — ' +
-  'never merge multiple kinds into one item, never invent extra properties beyond the ones described, and ' +
-  'never include "fields" on a correction/completion/expansion item — that property belongs to expression only.'
+  'typo or misspelling in text that is already a complete phrase — never use correction to fill in a missing ' +
+  'word or finish an unfinished phrase, that is completion\'s job, not correction\'s), up to 2 completions ' +
+  '(only if the search text looks like an unfinished word or phrase — each one a distinct, plausible way to ' +
+  'finish it, e.g. "new y" -> "new york", not a broader or related term, just the same one, finished), up to 2 ' +
+  'expansions (related terms, synonyms, or alternate phrasings for search text that is already a complete ' +
+  'thought — each one a single, standalone alternative; if you have more than one idea, return each as its own ' +
+  'separate suggestion instead of combining them into one item\'s text with a comma or "and"), and — if ' +
+  'available fields are described for you — up to 3 expressions: decompose the search text into ' +
+  'field/value/operator tuples in the "fields" array, one tuple per condition or bare term, using only the ' +
+  'described fields; never author the rendered query syntax yourself in "text" — only fall back to plain ' +
+  '"text" in the rare case where the search text truly cannot be decomposed into tuples at all. Return each as ' +
+  'its own separate item in the suggestions array — never merge multiple kinds into one item, never invent ' +
+  'extra properties beyond the ones described, and never include "fields" on a correction/completion/expansion ' +
+  'item — that property belongs to expression only.'
 
 // Dev-only visibility into session lifecycle and generation timing — every call site is
 // guarded by import.meta.env.DEV, a compile-time constant Vite replaces and then
@@ -165,11 +172,14 @@ function buildSuggestionsResponseSchema() {
               type: 'string',
               enum: ['correction', 'completion', 'expansion', 'expression'],
               description:
-                'correction: fixes a likely typo or misspelling in the Search Text, keeping its meaning intact. ' +
+                'correction: fixes a likely typo or misspelling in a Search Text that is already a complete ' +
+                'phrase, keeping its meaning intact — never used to fill in a missing word or finish an ' +
+                'unfinished phrase; that is completion, not correction. ' +
                 'completion: the Search Text looks like an unfinished word or phrase — a distinct, plausible way ' +
                 'to finish it (e.g. "new y" -> "new york"), the same thing, not a broader or related one. ' +
                 'expansion: broadens the Search Text with related terms, synonyms, or alternate phrasings, ' +
-                'for text that already reads as a complete thought. ' +
+                'for text that already reads as a complete thought — one single, standalone alternative per ' +
+                'item, never multiple ideas joined by a comma or "and" in one item\'s text. ' +
                 'expression: reformulates the Search Text as a fielded and/or boolean query, decomposed into ' +
                 'field/value/operator tuples in "fields" using the Available Fields below — not authored ' +
                 'directly as text.',
@@ -177,7 +187,10 @@ function buildSuggestionsResponseSchema() {
             text: {
               type: 'string',
               description:
-                'For correction/completion/expansion: the corrected, completed, or broadened search text, in the same language and style as the input. ' +
+                'For correction/completion/expansion: the corrected, completed, or broadened search text — ' +
+                'short keywords or a phrase in the same language and style as the input, never a full ' +
+                'descriptive sentence, and never multiple alternatives joined by a comma (return each ' +
+                'alternative as its own separate suggestion instead). ' +
                 'For expression: omit when "fields" is populated — only provide raw query text here as a last ' +
                 'resort, when the Search Text genuinely cannot be decomposed into field/value tuples.',
             },
