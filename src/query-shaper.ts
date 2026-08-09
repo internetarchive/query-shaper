@@ -67,9 +67,11 @@ const GENERIC_INSTRUCTION =
   'each one a distinct, plausible way to finish it, e.g. "new y" -> "new york", not a broader or related term, ' +
   'just the same one, finished), up to 2 expansions (related terms, synonyms, or alternate ' +
   'phrasings for search text that is already a complete thought), and — if available fields are described for ' +
-  'you — up to 3 expressions (fielded/boolean reformulations using those fields). Return each as its own ' +
-  'separate item in the suggestions array — never merge multiple kinds into one item, and never invent extra ' +
-  'properties beyond the ones described.'
+  'you — up to 3 expressions: decompose the search text into field/value/operator tuples in the "fields" array, ' +
+  'one tuple per condition or bare term, using only the described fields; never author the rendered query ' +
+  'syntax yourself in "text" — only fall back to plain "text" in the rare case where the search text truly ' +
+  'cannot be decomposed into tuples at all. Return each as its own separate item in the suggestions array — ' +
+  'never merge multiple kinds into one item, and never invent extra properties beyond the ones described.'
 
 // Dev-only visibility into session lifecycle and generation timing — every call site is
 // guarded by import.meta.env.DEV, a compile-time constant Vite replaces and then
@@ -167,19 +169,24 @@ function buildSuggestionsResponseSchema() {
                 'to finish it (e.g. "new y" -> "new york"), the same thing, not a broader or related one. ' +
                 'expansion: broadens the Search Text with related terms, synonyms, or alternate phrasings, ' +
                 'for text that already reads as a complete thought. ' +
-                'expression: reformulates the Search Text as a fielded and/or boolean query using the Available Fields below.',
+                'expression: reformulates the Search Text as a fielded and/or boolean query, decomposed into ' +
+                'field/value/operator tuples in "fields" using the Available Fields below — not authored ' +
+                'directly as text.',
             },
             text: {
               type: 'string',
               description:
                 'For correction/completion/expansion: the corrected, completed, or broadened search text, in the same language and style as the input. ' +
-                'For expression: the fully rendered query text.',
+                'For expression: omit when "fields" is populated — only provide raw query text here as a last ' +
+                'resort, when the Search Text genuinely cannot be decomposed into field/value tuples.',
             },
             fields: {
               type: 'array',
               description:
-                'Only for an expression kind: EVERY field/value/operator tuple the query text was built from, ' +
-                'all in this one array — never invent a second array or a differently-named property for more of them.',
+                'For an expression kind, this is the primary channel: EVERY field/value/operator tuple that ' +
+                'captures the Search Text\'s intent, all in this one array — never invent a second array or a ' +
+                'differently-named property for more of them, and never fall back to writing the query in ' +
+                '"text" unless decomposition is truly impossible.',
               items: {
                 type: 'object',
                 properties: {

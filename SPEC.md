@@ -244,16 +244,21 @@ also flagged as a Correction) — see the unified-generation note below.
    in content it didn't fit into the declared shape, which then gets
    silently dropped.
 
-   If the model still returns an Expression with no `fields` at all but does
-   provide `text`, that `text` is used verbatim as a fallback rather than
-   rendering an empty, invisible Suggestion from an empty tuple set. This is
-   a deliberate tradeoff, not an oversight: query-shaper's Formats are meant
-   to guarantee code-rendered, correct syntax, and this fallback path
-   forfeits that guarantee — the model can write syntactically wrong text
-   here (e.g. `year=2020` instead of `year:2020` for `lucene`), unvalidated
-   and uncorrected. Showing it anyway was chosen over dropping it, on the
-   view that a possibly-flawed Suggestion beats silently offering fewer than
-   the model attempted.
+   The instruction and schema descriptions both tell the model that `fields`
+   is the primary channel for an Expression and that writing directly into
+   `text` is a last resort, reserved for search text that truly can't be
+   decomposed into tuples — a distinction that only became sayable this
+   plainly once `sql` (where writing `text` directly was the *only* channel)
+   was removed; see ADR-0006. If the model still returns an Expression with
+   no `fields` at all but does provide `text`, that `text` is used verbatim
+   as a fallback rather than rendering an empty, invisible Suggestion from
+   an empty tuple set. This is a deliberate tradeoff, not an oversight:
+   query-shaper's Formats are meant to guarantee code-rendered, correct
+   syntax, and this fallback path forfeits that guarantee — the model can
+   write syntactically wrong text here (e.g. `year=2020` instead of
+   `year:2020` for `lucene`), unvalidated and uncorrected. Showing it anyway
+   was chosen over dropping it, on the view that a possibly-flawed
+   Suggestion beats silently offering fewer than the model attempted.
 
    Debouncing only cancels a *pending* timer, not an already-started model
    call — real on-device latency means a call from an earlier pause can
