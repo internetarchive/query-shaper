@@ -5,10 +5,10 @@ export type FieldDescriptor = {
   description?: string
 }
 
-export type Fields = string | FieldDescriptor[] | Record<string, FieldDescriptor[]>
+export type Fields = string | FieldDescriptor[]
 
 export type FieldValue = { field?: string; value: string; operator?: string }
-export type FormatPreset = 'lucene' | 'url-params' | 'simple-query-string' | 'sql' | 'rest-api'
+export type FormatPreset = 'lucene' | 'url-params' | 'simple-query-string'
 export type FormatRenderer = (fields: FieldValue[]) => string
 export type Format = FormatPreset | FormatRenderer
 
@@ -30,13 +30,13 @@ export type RawSuggestion =
   | { kind: 'correction'; text: string }
   | { kind: 'completion'; text: string }
   | { kind: 'expansion'; text: string }
-  | { kind: 'expression'; fields?: FieldValue[]; text?: string; resource?: string }
+  | { kind: 'expression'; fields?: FieldValue[]; text?: string }
 
 export type Suggestion =
   | { kind: 'correction'; text: string }
   | { kind: 'completion'; text: string }
   | { kind: 'expansion'; text: string }
-  | { kind: 'expression'; text: string; fields?: FieldValue[]; resource?: string }
+  | { kind: 'expression'; text: string; fields?: FieldValue[] }
 
 export type HistoryEntry = {
   searchText: string
@@ -116,35 +116,6 @@ function quoteMultiWord(value: string): string {
   return /\s/.test(value) ? `"${value}"` : value
 }
 
-function isFileResource(name: string): boolean {
-  const trimmed = name.trim()
-  if (trimmed.includes('(') && trimmed.includes(')')) return true
-  if (/^['"]/.test(trimmed)) return true
-  if (/\.(csv|tsv|parquet|json|ndjson|xlsx)\b/i.test(trimmed)) return true
-  if (/^\w+:\/\//.test(trimmed)) return true
-  if (trimmed.includes('/')) return true
-  return false
-}
-
-function describeResources(resources: Record<string, FieldDescriptor[]>): string {
-  const tables: string[] = []
-  const files: string[] = []
-  for (const [name, descriptors] of Object.entries(resources)) {
-    const columns = descriptors.map((d) => d.name).join(', ')
-    const line = `- ${name}(${columns})`
-    if (isFileResource(name)) files.push(line)
-    else tables.push(line)
-  }
-  const lines: string[] = []
-  if (tables.length > 0) {
-    lines.push('Available tables:', ...tables)
-  }
-  if (files.length > 0) {
-    lines.push('Available files (DuckDB can query these directly — local or remote):', ...files)
-  }
-  return lines.join('\n')
-}
-
 const SHADOW_STYLES = `
   ul { list-style: none; margin: 0; padding: 0; }
   [part="listbox"] {
@@ -177,7 +148,7 @@ const SHADOW_STYLES = `
   }
 `
 
-function buildSuggestionsResponseSchema(isSql: boolean) {
+function buildSuggestionsResponseSchema() {
   return {
     type: 'object',
     properties: {
@@ -204,11 +175,6 @@ function buildSuggestionsResponseSchema(isSql: boolean) {
                 'For correction/completion/expansion: the corrected, completed, or broadened search text, in the same language and style as the input. ' +
                 'For expression: the fully rendered query text.',
             },
-            resource: {
-              type: 'string',
-              description:
-                'Only for an expression kind under a REST-API format: the endpoint this expression targets. Omit otherwise.',
-            },
             fields: {
               type: 'array',
               description:
@@ -232,7 +198,7 @@ function buildSuggestionsResponseSchema(isSql: boolean) {
               },
             },
           },
-          required: isSql ? ['kind', 'text'] : ['kind'],
+          required: ['kind'],
           additionalProperties: false,
         },
       },
@@ -298,14 +264,7 @@ export class QueryShaper extends HTMLElement {
   get format(): Format {
     if (this.#hasFormatOverride) return this.#formatOverride as Format
     const attr = this.getAttribute('format')
-    if (
-      attr === 'lucene' ||
-      attr === 'url-params' ||
-      attr === 'simple-query-string' ||
-      attr === 'sql' ||
-      attr === 'rest-api'
-    )
-      return attr
+    if (attr === 'lucene' || attr === 'url-params' || attr === 'simple-query-string') return attr
     return 'lucene'
   }
 
@@ -548,7 +507,7 @@ export class QueryShaper extends HTMLElement {
         try {
           raw = await devTimed(`${this.#tag()} #${id} prompt()`, () =>
             child.prompt(this.#buildQueryPrompt(searchText, history), {
-              responseConstraint: buildSuggestionsResponseSchema(this.format === 'sql'),
+              responseConstraint: buildSuggestionsResponseSchema(),
               signal: controller.signal,
             }),
           )
@@ -612,64 +571,14 @@ export class QueryShaper extends HTMLElement {
   #buildFieldsSection(): string | null {
     const fields = this.fields
     if (fields === undefined) return null
-    if (this.format === 'sql') return this.#buildSqlFieldsSection(fields)
-    if (this.format === 'rest-api') return this.#buildRestFieldsSection(fields)
     const fieldsDescription = typeof fields === 'string' ? fields : JSON.stringify(fields)
     const format = this.format
     return `Available fields: ${fieldsDescription}\nFormat: ${typeof format === 'function' ? 'custom' : format}`
   }
 
-  #buildRestFieldsSection(fields: Fields): string {
-    const lines: string[] = []
-    const placeholderNote =
-      'An endpoint may contain {name} placeholders; return a field/value pair whose field matches each {name} you need to fill.'
-    if (typeof fields === 'string') {
-      lines.push(`Available endpoints: ${fields}`)
-      lines.push('Return the endpoint you chose as "resource".')
-    } else if (Array.isArray(fields)) {
-      const resource = this.getAttribute('resource')
-      if (resource) {
-        const columns = fields.map((f) => f.name).join(', ')
-        lines.push(`Available endpoint: ${resource}(${columns})`)
-      } else {
-        lines.push(`Available fields: ${JSON.stringify(fields)}`)
-      }
-    } else {
-      const entries = Object.entries(fields).map(
-        ([resource, descriptors]) => `- ${resource}(${descriptors.map((d) => d.name).join(', ')})`,
-      )
-      lines.push('Available endpoints:', ...entries)
-      lines.push('Return the endpoint you chose as "resource".')
-    }
-    lines.push(placeholderNote)
-    return lines.join('\n')
-  }
-
-  #buildSqlFieldsSection(fields: Fields): string {
-    const lines: string[] = []
-    if (typeof fields === 'string') {
-      lines.push(`Available fields: ${fields}`)
-    } else if (Array.isArray(fields)) {
-      const resource = this.getAttribute('resource')
-      if (resource) {
-        lines.push(describeResources({ [resource]: fields }))
-      } else {
-        lines.push(`Available fields: ${JSON.stringify(fields)}`)
-      }
-    } else {
-      lines.push(describeResources(fields))
-    }
-    lines.push('Write SQL for DuckDB.')
-    return lines.join('\n')
-  }
-
   #toSuggestion(raw: RawSuggestion): Suggestion | null {
     if (raw.kind === 'expression') {
-      if (this.format === 'sql') {
-        return { kind: 'expression', text: raw.text ?? '' }
-      }
       const fields = raw.fields ?? []
-      if (this.format === 'rest-api') return this.#toRestSuggestion(raw, fields)
       if (fields.length === 0 && raw.text) {
         // The model wrote free text instead of decomposing into fields — a best-effort
         // fallback beats silently rendering an empty, invisible suggestion.
@@ -678,56 +587,6 @@ export class QueryShaper extends HTMLElement {
       return { kind: 'expression', fields, text: this.#renderFormat(fields) }
     }
     return raw
-  }
-
-  #toRestSuggestion(raw: RawSuggestion & { kind: 'expression' }, fields: FieldValue[]): Suggestion | null {
-    const resourceAttr = this.getAttribute('resource')
-    const resource = resourceAttr ?? raw.resource
-    const rendered = this.#renderRestUrl(resource, fields)
-    if (rendered === null) {
-      this.dispatchEvent(
-        new CustomEvent('query-shaper-error', {
-          detail: {
-            error: new Error(`Unresolved path parameter in resource "${resource}"`),
-            phase: 'rest-path-substitution',
-          },
-        }),
-      )
-      return null
-    }
-    const modelResource = !resourceAttr && raw.resource ? raw.resource : undefined
-    return modelResource
-      ? { kind: 'expression', text: rendered.text, fields: rendered.fields, resource: modelResource }
-      : { kind: 'expression', text: rendered.text, fields: rendered.fields }
-  }
-
-  #renderRestUrl(resource: string | undefined, fields: FieldValue[]): { text: string; fields: FieldValue[] } | null {
-    const consumed = new Set<number>()
-    let unresolved = false
-    const path = (resource ?? '').replace(/\{([^}]+)\}/g, (match, name: string) => {
-      const idx = fields.findIndex((f, i) => f.field === name && !consumed.has(i))
-      const matched = fields[idx]
-      if (idx === -1 || !matched) {
-        unresolved = true
-        return match
-      }
-      consumed.add(idx)
-      return encodeURIComponent(matched.value)
-    })
-    if (unresolved) return null
-    const remaining = fields.filter((_, i) => !consumed.has(i))
-    const query =
-      remaining.length > 0
-        ? new URLSearchParams(remaining.map((f) => [f.field ?? 'q', f.value] as [string, string])).toString()
-        : ''
-    const joined = path ? this.#joinUrl(this.base, path) : this.base
-    return { text: query ? `${joined}?${query}` : joined, fields: remaining }
-  }
-
-  #joinUrl(base: string, path: string): string {
-    const trimmedBase = base.endsWith('/') ? base.slice(0, -1) : base
-    const trimmedPath = path.startsWith('/') ? path.slice(1) : path
-    return `${trimmedBase}/${trimmedPath}`
   }
 
   #renderFormat(fields: FieldValue[]): string {

@@ -68,36 +68,24 @@ _Avoid_: Output target, sink, render target
 
 **Fields**:
 The description of what fields exist in the Target's backend, enabling
-Expression suggestions. Declared as free-form text, inline JSON, an
-imperative property, or — for backends with more than one Resource (e.g. a
-SQL database's tables) — a JSON object keyed by Resource name, each holding
-its own field list. Without Fields, only Correction and Expansion Suggestions
-are offered.
+Expression suggestions. Declared as free-form text, inline JSON, or an
+imperative property. Without Fields, only Correction, Completion, and
+Expansion Suggestions are offered.
 _Avoid_: Schema, field schema, index schema
 
 **Format**:
 The preset (or custom render function) that tells `<query-shaper>` how an
-Expression's rendered text is arrived at for a specific backend — either by
-rendering field/value pairs itself (a Lucene-style string, URL parameters for
-facet-driven backends, REST query parameters against a chosen Resource
-endpoint, or a custom render function), or by having the model author the
-text directly, as with SQL, where field/value pairs can't capture joins,
-projections, or ordering.
+Expression's rendered text is arrived at for a specific backend — rendering
+field/value pairs itself as a Lucene-style string, as URL parameters for
+facet-driven backends, or via a custom render function for shapes neither
+preset covers.
 _Avoid_: Syntax, query dialect, query syntax, render mode
 
-**Resource**:
-The table, file, table-valued expression (e.g. `read_csv('data.csv')`), or
-REST API endpoint path a Fields entry's columns or query parameters belong
-to. Named — not "Table" or "Endpoint" — because it covers files, function
-calls, and API routes equally, not just literal database tables.
-_Avoid_: Table, source, from, endpoint
-
 **Base**:
-The root URL a `rest-api` Format composes a chosen Resource's path and query
-parameters onto (and that a `url-params` Format optionally composes a full
-URL onto, instead of rendering a bare query string). Accepts a relative
-path, absolute path, or absolute URL; defaults to the current document's URL
-with its query string and fragment stripped.
+The root URL a `url-params` Format optionally composes a full URL onto,
+instead of rendering a bare query string. Accepts a relative path, absolute
+path, or absolute URL; defaults to the current document's URL with its
+query string and fragment stripped.
 _Avoid_: Root, origin, endpoint base
 
 **History**:

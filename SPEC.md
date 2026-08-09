@@ -18,8 +18,6 @@ architecture.
   structured so promoting one to an attribute is additive, not a rewrite)
 - Reading `<datalist>` options as passive vocabulary input (plausible future
   idea, not committed)
-- Non-`GET` HTTP semantics for `format="rest-api"` — no request bodies, no
-  other HTTP methods; it composes URLs for read/search endpoints only
 
 ## Element API
 
@@ -30,34 +28,19 @@ architecture.
 attribute value is JSON-parsed first; if that fails, treated as a free-form
 description string (e.g. `"title, author, language:iso-639-1, date (allowed
 patterns YYYY[-MM[-DD]]), categories (comma-separated list)"`). The parsed
-JSON form is either an array of field descriptors (single Resource, the
-common case) or, for backends with more than one Resource, an object keyed
-by Resource name, each value its own array of field descriptors (e.g.
-`{"books": [{"name":"title"}, {"name":"year"}], "categories": [{"name":"id"}, {"name":"name"}]}`).
-There's no `"default"`/`"_"` wrapper for the single-Resource case — the bare
-array stays the default, un-nested form. The `.fields` property always wins
-when both are set. Absent entirely → only Correction, Completion, and
-Expansion suggestions are generated; no Expression.
+JSON form is a bare array of field descriptors. The `.fields` property
+always wins when both are set. Absent entirely → only Correction,
+Completion, and Expansion suggestions are generated; no Expression.
 
-**`resource`** (attribute, optional): the table, file, table-valued
-expression (e.g. `read_csv('data.csv')`), or REST API endpoint path that a
-bare-array/free-text Fields declaration's columns/parameters belong to —
-meaningful for `format="sql"` and `format="rest-api"`. Ignored when `fields`
-is the keyed-by-Resource object form, since the keys themselves supply this
-per Resource. For `rest-api`, the value may contain `{name}`-style
-path-parameter placeholders (e.g. `resource="questions/{slug}"`) — see
-"REST-API prompt building" below.
-
-**`base`** (attribute, optional): the root URL that `format="rest-api"`
-composes a chosen Resource's path and query parameters onto, and that
-`format="url-params"` optionally composes a full URL onto instead of
-rendering a bare query string (see the `url-params` and `rest-api` entries
-below). Accepts a relative path, an absolute path, or an absolute URL —
-resolved via `new URL(base, document.baseURI)`, so it behaves exactly like
-any other relative URL resolution in the browser, no special-casing needed
-for the three forms. Defaults, when absent, to the current document's URL
-with the query string and fragment stripped (`new URL(document.baseURI)`
-with `.search`/`.hash` cleared).
+**`base`** (attribute, optional): the root URL that `format="url-params"`
+optionally composes a full URL onto instead of rendering a bare query
+string (see the `url-params` entry below). Accepts a relative path, an
+absolute path, or an absolute URL — resolved via `new URL(base,
+document.baseURI)`, so it behaves exactly like any other relative URL
+resolution in the browser, no special-casing needed for the three forms.
+Defaults, when absent, to the current document's URL with the query string
+and fragment stripped (`new URL(document.baseURI)` with `.search`/`.hash`
+cleared).
 
 **`format`** (attribute): a built-in preset name telling query-shaper how an
 Expression's rendered text is arrived at:
@@ -86,28 +69,10 @@ Expression's rendered text is arrived at:
   **`base`** attribute is set, the rendered text is the full URL (`base` +
   `?` + the query string) rather than a bare query string; when `base` is
   absent, behavior is unchanged from today (bare query string).
-- `rest-api` — like `lucene`/`url-params`/`simple-query-string`, field/value
-  pairs are rendered by query-shaper, not authored by the model. What's
-  different: the model additionally selects which declared Resource (REST
-  endpoint) the Expression targets, and may fill `{name}`-style path
-  parameters embedded in that Resource's path from the same tuple set — see
-  "REST-API prompt building" below. The rendered `text` is always a fully
-  composed absolute URL: **`base`** + the selected Resource's path (with any
-  path parameters substituted) + `?` + the remaining tuples rendered as a
-  query string (the same rendering `url-params` uses). If the model returns
-  no Resource, `base` alone is the endpoint.
-- `sql` — no field/value decomposition at all; the model authors the
-  complete, runnable SQL statement directly (DuckDB dialect), including its
-  own `FROM`/`JOIN` clauses, and query-shaper uses that text verbatim. Field
-  filters, joins, projections, `ORDER BY`/`LIMIT`, and nested queries don't
-  fit a flat field/value/operator shape, so unlike the other three presets,
-  there's no rendering step to bypass — see "SQL prompt building" below for
-  how Fields/Resource feed the prompt instead.
 - Imperative-only escape hatch: a `.format` property accepting a custom render
   function, for shapes neither preset covers. Since it's a function over
-  `FieldValue[]`, it can only ever operate on decomposed tuples — there's no
-  way for a custom function to receive raw model-authored text the way `sql`
-  does; a host wanting SQL-like freedom must use the `sql` preset itself.
+  `FieldValue[]`, it can only ever operate on decomposed tuples, never raw
+  model-authored text.
 
 **`action`** (attribute): one of `fill` (default), `submit`, `opensearch`,
 `output`, `none`.
@@ -193,11 +158,8 @@ suggestion, action }`
 - **`query-shaper-status`** — model/session lifecycle transition (see below).
   `detail: { status: 'unavailable'|'downloadable'|'downloading'|'available' }`
 - **`query-shaper-error`** — a generation call failed (prompt error, quota
-  exceeded, unrecoverable context overflow), or a `format="rest-api"`
-  Expression was dropped because a Resource path's `{name}` placeholder
-  couldn't be filled from the model's returned tuples (`phase:
-  "rest-path-substitution"`). `detail: { error, phase }`. The Target itself
-  never breaks — this is purely an observability seam.
+  exceeded, unrecoverable context overflow). `detail: { error, phase }`. The
+  Target itself never breaks — this is purely an observability seam.
 
 ### Suggestion shape
 
@@ -208,9 +170,8 @@ type Suggestion =
   | { kind: "expansion"; text: string }
   | {
       kind: "expression";
-      text: string; // rendered per Format, or model-authored verbatim for sql
+      text: string; // rendered per Format
       fields?: Array<{ field?: string; value: string; operator?: string }>;
-      resource?: string; // the Resource (REST endpoint) selected, rest-api only
     };
 ```
 
@@ -219,99 +180,13 @@ filter — the primary case for `simple-query-string`, a secondary one for
 `lucene`. `operator`'s meaning is Format-specific: `AND`/`OR` for `lucene`,
 `+`/`-` for `simple-query-string`.
 
-`fields` is omitted entirely (not an empty array — an empty array would
-falsely imply a query with zero conditions) for `format="sql"` Expressions,
-since there's no decomposition step for them to report. This is also why
-`fields` is optional on the type at all: every other Suggestion kind, and
-every other Format, always populates it.
-
-`resource` is populated only for `format="rest-api"` Expressions where the
-model determined which declared endpoint applies — e.g. Fields declared as
-a Resource-keyed object (multiple candidate endpoints), or free-form text
-describing endpoints in prose. It's omitted when a `resource` attribute
-already pins a single fixed endpoint, since there's nothing left to
-disambiguate, and omitted for every non-`rest-api` Format, same as `fields`
-is for `sql`.
+`fields` is optional on the type because a tuple-rendering Format can still
+fall back to the model's raw `text` with no decomposition — see the
+no-`fields`-fallback note under Generation flow below.
 
 Every Suggestion the model returns already has typo corrections folded into
 its basis text (an Expression never faithfully encodes a typo the model
 also flagged as a Correction) — see the unified-generation note below.
-
-### SQL prompt building
-
-When `format="sql"`, the "Available fields" prompt section is replaced with
-a schema-like listing instead of a bare field list, and each Resource is
-described as a table or a file:
-
-- A Resource name is classified as a **file** if it contains `(` `)` (a
-  function-call shape, e.g. `read_csv(...)`), is a quoted string literal, or
-  contains a recognizable file extension, URL scheme, or `/` path separator.
-  Everything else defaults to **table** — the common case, and safer than
-  guessing "file" from an unrecognized shape.
-- The prompt groups Resources by that classification and explicitly tells
-  the model to write SQL for DuckDB, which can query local or remote files
-  directly:
-
-  ```
-  Available tables:
-  - books(title, year, author, category_id)
-
-  Available files (DuckDB can query these directly — local or remote):
-  - read_csv('data.csv')(title, year)
-
-  Write SQL for DuckDB.
-  ```
-
-- Multi-table joins are the model's call to make, not query-shaper's — if it
-  determines a question needs `books` and `categories` together, it writes
-  the `JOIN` itself. query-shaper has no notion of foreign-key relationships
-  and doesn't attempt to construct or validate joins; the model's returned
-  `text` is used verbatim regardless of how many Resources it drew on, since
-  that's already embedded in the SQL text's own `FROM`/`JOIN` clauses.
-- A bare-array/free-text Fields declaration (single Resource) uses the
-  `resource` attribute for the same table/file classification, phrased the
-  same way. If `resource` is also absent, no schema listing is added — the
-  free-form Fields text (if any) is passed through as-is, same as every
-  other Format, and the model is left to infer table/file naming itself.
-
-### REST-API prompt building
-
-When `format="rest-api"`, Fields describes one or more REST endpoints
-(Resources), and the prompt always explains the path-parameter convention
-below regardless of which Fields shape is in play:
-
-- A **Resource-keyed Fields object** lists multiple endpoints by path (e.g.
-  `{"questions": [...], "questions/{slug}": [...], "responses": [...]}`),
-  each with its own field descriptors — the model must pick one per
-  Expression and return it as `resource` on the Suggestion.
-- A **bare array + `resource` attribute** declares a single, fixed endpoint;
-  the model is never asked to choose or return one, since there's only one.
-- **Free-form text** Fields describes available endpoints in prose; the
-  model must both infer and return a `resource` string, same as it infers
-  field names from prose under any other Format.
-
-**Path parameters**, in every shape above, use one convention: an endpoint
-path may contain `{name}` placeholders (e.g. `questions/{slug}`). The model
-fills these from the *same* field/value tuple set it already returns for
-query parameters — no separate `in: "query" | "path"` marker on field
-descriptors. Rendering:
-
-1. Take the Resource path — from the `resource` attribute, or the model's
-   returned `resource`, or `base` alone if neither is present.
-2. For each `{name}` token in that path, find a returned tuple whose `field`
-   matches `name`, percent-encode its `value` with `encodeURIComponent`
-   (same encoding the `opensearch` Action already uses for `{searchTerms}`
-   substitution — not `URLSearchParams`'s `+`-for-space rule), and splice it
-   in. Consumed tuples are removed from the set.
-3. Render whatever tuples remain as a query string (the same renderer
-   `url-params` uses) and append it to `base` + the substituted path.
-
-query-shaper does not validate a model-returned `resource` against the
-declared endpoint list — it's trusted verbatim, the same trust the `sql`
-preset already extends to raw model-authored text. If, after step 2, the
-path still contains an unresolved `{name}` token, the Expression Suggestion
-is dropped and `query-shaper-error` fires with `phase:
-"rest-path-substitution"` instead of emitting a structurally broken URL.
 
 ## Generation flow
 
@@ -369,17 +244,16 @@ is dropped and `query-shaper-error` fires with `phase:
    in content it didn't fit into the declared shape, which then gets
    silently dropped.
 
-   If the model still returns an Expression with no `fields` at all under a
-   tuple-rendering Format (`lucene`/`simple-query-string`/`url-params`/
-   `rest-api`) but does provide `text`, that `text` is used verbatim as a
-   fallback rather than rendering an empty, invisible Suggestion from an
-   empty tuple set. This is a deliberate tradeoff, not an oversight: unlike
-   `sql`, these Formats are meant to guarantee code-rendered, correct
-   syntax, and this fallback path forfeits that guarantee — the model can
-   write syntactically wrong text here (e.g. `year=2020` instead of
-   `year:2020` for `lucene`), unvalidated and uncorrected. Showing it
-   anyway was chosen over dropping it, on the view that a possibly-flawed
-   Suggestion beats silently offering fewer than the model attempted.
+   If the model still returns an Expression with no `fields` at all but does
+   provide `text`, that `text` is used verbatim as a fallback rather than
+   rendering an empty, invisible Suggestion from an empty tuple set. This is
+   a deliberate tradeoff, not an oversight: query-shaper's Formats are meant
+   to guarantee code-rendered, correct syntax, and this fallback path
+   forfeits that guarantee — the model can write syntactically wrong text
+   here (e.g. `year=2020` instead of `year:2020` for `lucene`), unvalidated
+   and uncorrected. Showing it anyway was chosen over dropping it, on the
+   view that a possibly-flawed Suggestion beats silently offering fewer than
+   the model attempted.
 
    Debouncing only cancels a *pending* timer, not an already-started model
    call — real on-device latency means a call from an earlier pause can
@@ -432,12 +306,8 @@ is dropped and `query-shaper-error` fires with `phase:
 ## Demo plan
 
 A single demo page with multiple `<query-shaper>` instances. `Accept`
-produces something directly usable against that instance's real backend —
-navigating to a results page for four of them, displaying/linking to a
-constructed REST URL for the fifth (Ask Me Twice, a JSON API with no results
-page of its own and no CORS support), and writing a generated SQL statement
-into a code block for the sixth (DuckDB over a remote Parquet file) — no
-inline result-fetching/execution in any case.
+navigates to a results page against that instance's real backend — no
+inline result-fetching in any case.
 
 1. **Internet Archive** (`archive.org/advancedsearch.php`) — Fields:
    `mediatype`, `year`, `creator`, `subject`, `language`; Format: `lucene`
@@ -460,33 +330,6 @@ inline result-fetching/execution in any case.
    Expansion-only fallback), a free-form text description, an inline JSON
    schema, and a
    custom `.format` render function.
-5. **Ask Me Twice** (`wayback-api.archive.org/services/amt-api`, archive.org's
-   internal AI-response-tracking API) — confirmed live, GET-only. Its data
-   endpoints do send `Access-Control-Allow-Origin: *` (confirmed with an
-   `Origin` header on the request — a plain request without one won't show
-   it, which is normal CORS behavior, not a sign it's absent), so inline
-   fetching is technically possible; the demo still doesn't do it, for the
-   same reason the other four don't — Accept produces something to act on,
-   not a rendered result. `base`:
-   `https://wayback-api.archive.org/services/amt-api/api/v1`; Fields as a
-   Resource-keyed object with two endpoints: `responses` (`provider`,
-   `model_id`, `question_slug`, `day`, `error_type` — real, confirmed query
-   parameters on the live list endpoint) and `questions/{slug}` (a single
-   `slug` field, demonstrating path-parameter substitution; the model's
-   guessed slug is trusted, not validated, same as every other `rest-api`
-   Resource). Format: `rest-api`. Action: `output` with an explicit
-   `destination`, which the demo page's own script turns into a clickable
-   link (the URL is both the link text and its `href` — one element, not a
-   separate link alongside a plain-text display) on `query-shaper-accept`.
-6. **DuckDB over a remote Parquet file** (the Internet Archive's
-   [End of Term 2024 Web Crawls](https://archive.org/details/EndOfTerm2024WebCrawls)
-   CDX index, queried straight over HTTP — no local download) — a single
-   file Resource declared via the bare-array-Fields-plus-`resource`
-   attribute shape, `resource="read_parquet('https://archive.org/download/
-   EndOfTerm2024WebCrawls/EndOfTerm2024WebCrawls.parquet')"`. Format: `sql`;
-   Action: `output` with `destination` pointing straight at a `<code>`
-   element — no accept-handling script needed, since `output` already sets
-   `.textContent` on a non-input match.
 
 ## Implementation defaults (not separately grilled — flagging, not asking)
 

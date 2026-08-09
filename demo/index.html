@@ -117,48 +117,7 @@
     </section>
 
     <section>
-      <h2>4. Ask Me Twice (REST API)</h2>
-      <p>
-        A live, GET-only JSON API — no results page to navigate to, so
-        <code>action="output"</code> fills the Target and writes the
-        constructed URL below as a clickable link (it does support CORS on
-        its data endpoints, but this demo still doesn't fetch inline, for the
-        same reason none of the others do — Accept produces something to act
-        on, not a rendered result). Fields declare two endpoints:
-        <code>responses</code> (list, filterable by real query parameters)
-        and <code>questions/{slug}</code> (single-item lookup by a
-        model-guessed slug, demonstrating path-parameter substitution).
-        Format <code>rest-api</code>; <code>base</code> is the API's real
-        root.
-      </p>
-      <form>
-        <input id="amt-search" type="search" placeholder="e.g. OpenAI responses from today that had errors" />
-        <query-shaper
-          id="amt-shaper"
-          for="amt-search"
-          base="https://wayback-api.archive.org/services/amt-api/api/v1"
-          fields='{
-            "responses": [
-              {"name": "provider", "description": "AI provider slug, e.g. openai, anthropic, google"},
-              {"name": "model_id", "description": "provider/model-name slug, e.g. openai/gpt-4"},
-              {"name": "question_slug", "description": "kebab-case slug of the question asked"},
-              {"name": "day", "type": "date", "description": "YYYY-MM-DD"},
-              {"name": "error_type", "description": "one of: any, incomplete, none, rejected"}
-            ],
-            "questions/{slug}": [
-              {"name": "slug", "description": "kebab-case slug matching the question wording as closely as possible"}
-            ]
-          }'
-          format="rest-api"
-          action="output"
-          destination="#amt-output"
-        ></query-shaper>
-      </form>
-      <p id="amt-output"></p>
-    </section>
-
-    <section>
-      <h2>5. No Fields declared</h2>
+      <h2>4. No Fields declared</h2>
       <p>
         Without Fields, only Correction and Expansion Suggestions are
         offered — no Expression.
@@ -168,7 +127,7 @@
     </section>
 
     <section>
-      <h2>6. Free-form text Fields</h2>
+      <h2>5. Free-form text Fields</h2>
       <p>
         A loosely specified, human-written Fields description still produces
         sensible Expression Suggestions.
@@ -181,7 +140,7 @@
     </section>
 
     <section>
-      <h2>7. Inline JSON Fields</h2>
+      <h2>6. Inline JSON Fields</h2>
       <p>The more precise, structured declaration path.</p>
       <input id="generic-json" type="search" placeholder="e.g. electronics under $50 in stock" />
       <query-shaper
@@ -191,7 +150,7 @@
     </section>
 
     <section>
-      <h2>8. Custom <code>.format</code> render function</h2>
+      <h2>7. Custom <code>.format</code> render function</h2>
       <p>
         The escape hatch for backends neither built-in preset covers — set
         imperatively since a render function can't be expressed as an
@@ -201,58 +160,11 @@
       <query-shaper id="generic-custom-shaper" for="generic-custom" fields='[{"name":"category"},{"name":"price","type":"number"}]'></query-shaper>
     </section>
 
-    <section>
-      <h2>9. DuckDB SQL over a remote Parquet file</h2>
-      <p>
-        Format <code>sql</code> — the model authors a complete DuckDB SQL
-        statement directly, since field/value tuples can't express the
-        <code>ORDER BY</code>/<code>LIMIT</code>/aggregation a question like
-        this often needs. A single file Resource — the
-        <a href="https://archive.org/details/EndOfTerm2024WebCrawls">End of Term 2024 Web Crawls</a>
-        CDX index, queried straight over HTTP via <code>read_parquet()</code>,
-        no local download — declared with the bare-array Fields form plus a
-        <code>resource</code> attribute. Action <code>output</code> writes
-        the generated SQL into the code block below.
-      </p>
-      <form>
-        <input id="eot-search" type="search" placeholder="e.g. PDF captures from state.gov in 2024" />
-        <query-shaper
-          for="eot-search"
-          resource="read_parquet('https://archive.org/download/EndOfTerm2024WebCrawls/EndOfTerm2024WebCrawls.parquet')"
-          fields='[
-            {"name":"urlkey","description":"SURT-canonicalized URL, sorts by host then path"},
-            {"name":"timestamp","type":"date","description":"native timestamp column, query it like any other timestamp"},
-            {"name":"original","description":"the captured URL as crawled"},
-            {"name":"mimetype","description":"e.g. text/html, image/png, application/pdf"},
-            {"name":"statuscode","type":"number","description":"HTTP status code"},
-            {"name":"digest","description":"SHA-1 digest, base32-encoded, e.g. PJKOFVMAWHGOZNRP4P53POMP4VUWGB2E"},
-            {"name":"length","type":"number","description":"record length in bytes"},
-            {"name":"offset","type":"number","description":"byte offset into the WARC file"},
-            {"name":"filename","description":"WARC filename holding this capture"}
-          ]'
-          format="sql"
-          action="output"
-          destination="#eot-output"
-        ></query-shaper>
-      </form>
-      <pre><code id="eot-output"></code></pre>
-    </section>
-
     <script type="module" src="../src/index.ts"></script>
     <script type="module">
       customElements.whenDefined('query-shaper').then(() => {
         document.querySelector('#generic-custom-shaper').format = (fields) =>
           fields.map((f) => `${f.field ?? 'q'}=${f.value}`).join(';')
-
-        const amtShaper = document.querySelector('#amt-shaper')
-        const amtOutput = document.querySelector('#amt-output')
-        amtShaper.addEventListener('query-shaper-accept', (e) => {
-          const url = e.detail.suggestion.text
-          const link = document.createElement('a')
-          link.href = url
-          link.textContent = url
-          amtOutput.replaceChildren(link)
-        })
       })
     </script>
   </body>
