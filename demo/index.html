@@ -63,13 +63,23 @@
       <p>
         Fields declared as an inline JSON schema; Format <code>lucene</code>;
         Action <code>opensearch</code> against a hand-built template (no
-        published OpenSearch document for archive.org).
+        published OpenSearch document for archive.org). <code>examples</code>
+        cover a range with an open ("before"/wildcard) bound, a grouped OR
+        combined with negation, a typo, and a vague input deliberately given
+        five varied Suggestions.
       </p>
       <form>
         <input id="ia-search" type="search" placeholder="e.g. climate change documentaries from 2020" />
         <query-shaper
           for="ia-search"
           fields='[{"name":"mediatype"},{"name":"year","type":"number"},{"name":"creator"},{"name":"subject"},{"name":"language"}]'
+          examples='[
+            {"input":"climate change documentaries from 2020","suggestions":["mediatype:movies AND subject:\"climate change\" AND year:2020"]},
+            {"input":"documentaries from before 2015","suggestions":["mediatype:movies AND year:[* TO 2015]"]},
+            {"input":"audio recordings or texts about jazz, not from 2020","suggestions":["(mediatype:audio OR mediatype:texts) AND subject:jazz AND -year:2020"]},
+            {"input":"documentries about space","suggestions":["mediatype:movies AND subject:space","documentaries about space"]},
+            {"input":"vintage sci-fi films","suggestions":["mediatype:movies AND subject:\"science fiction\"","vintage science fiction movies","classic sci-fi films","mediatype:movies AND subject:vintage","old science fiction movies"]}
+          ]'
           format="lucene"
           action="opensearch"
           template="https://archive.org/search?query={searchTerms}"
@@ -83,10 +93,11 @@
         Format <code>lucene</code>; Action <code>opensearch</code>, with the
         <code>template</code> sourced directly from Open Library's real
         <a href="https://openlibrary.org/static/opensearch.xml">OpenSearch description document</a>.
-        Also declares two <code>examples</code> — few-shot input/Suggestion
-        pairs primed alongside Fields, demonstrating correct field:value
-        syntax for exactly the cases (a range-shaped condition, correct
-        title-vs-author assignment) that were unreliable without them.
+        <code>examples</code> cover a bounded range, a wildcard open range, a
+        combined field + negation, a grouped OR, a typo, and a vague input
+        given five varied Suggestions. <code>notes</code> directly targets a
+        real bug seen live: the model once assigned "Harry Potter" to
+        <code>author</code> instead of <code>title</code>.
       </p>
       <form>
         <input id="ol-search" type="search" placeholder="e.g. books by Cory Doctorow in English" />
@@ -95,8 +106,14 @@
           fields='[{"name":"author"},{"name":"title"},{"name":"language","description":"ISO 639 code"},{"name":"first_publish_year","type":"number"}]'
           examples='[
             {"input":"harry potter books published before 2000","suggestions":["title:\"harry potter\" AND first_publish_year:[1000 TO 2000]"]},
-            {"input":"books by cory doctorow in english","suggestions":["author:\"cory doctorow\" AND language:en"]}
+            {"input":"books by cory doctorow in english","suggestions":["author:\"cory doctorow\" AND language:en"]},
+            {"input":"books published up to 2005","suggestions":["first_publish_year:[* TO 2005]"]},
+            {"input":"books by asimov but not in french","suggestions":["author:\"isaac asimov\" AND -language:fr"]},
+            {"input":"tolkien books in english or spanish","suggestions":["author:\"j.r.r. tolkien\" AND (language:en OR language:es)"]},
+            {"input":"harry poter books","suggestions":["title:\"harry potter\"","harry potter books"]},
+            {"input":"classic fantasy novels","suggestions":["title:fantasy","fantasy novels","classic fantasy books","title:\"lord of the rings\"","fantasy literature classics"]}
           ]'
+          notes="A book or series title (e.g. &quot;Harry Potter&quot;, &quot;Lord of the Rings&quot;) always belongs in the title field, never author — only a real person's name belongs in author."
           format="lucene"
           action="opensearch"
           template="https://openlibrary.org/search?q={searchTerms}&mode=everything"
@@ -110,13 +127,25 @@
         The <code>gov</code> collection itself is fixed configuration baked
         into the <code>template</code>, never a Field the model varies.
         Format <code>lucene</code>; the <code>{searchTerms}</code> placeholder
-        sits in a path segment, not a query string.
+        sits in a path segment, not a query string. <code>examples</code>
+        cover a bare term mixed with fielded conditions (since "climate
+        policy" isn't itself a declared Field), negation, a wildcard open
+        range in each direction, a typo, and a vague input given five varied
+        Suggestions.
       </p>
       <form>
         <input id="wb-search" type="search" placeholder="e.g. English-language sites about climate policy" />
         <query-shaper
           for="wb-search"
           fields='[{"name":"language"},{"name":"site"},{"name":"year","type":"number"},{"name":"pubdate","type":"date"}]'
+          examples='[
+            {"input":"government sites about climate policy after 2015","suggestions":["site:gov AND year:[2015 TO *] climate policy"]},
+            {"input":"English language government sites","suggestions":["language:en AND site:gov"]},
+            {"input":"sites excluding .com domains from 2020","suggestions":["-site:com AND year:2020"]},
+            {"input":"old government pages up to 2010","suggestions":["site:gov AND year:[* TO 2010]"]},
+            {"input":"goverment sites","suggestions":["site:gov","government sites"]},
+            {"input":"climate change resources","suggestions":["climate change","site:gov climate change","climate policy resources","environmental policy sites","site:org climate change"]}
+          ]'
           format="lucene"
           action="opensearch"
           template="https://web.archive.org/collection-search/gov/{searchTerms}"
@@ -138,21 +167,32 @@
       <h2>5. Free-form text Fields</h2>
       <p>
         A loosely specified, human-written Fields description still produces
-        sensible Expression Suggestions.
+        sensible Expression Suggestions — helped along here by
+        <code>examples</code>, since a harder-to-parse prose Fields
+        declaration measurably needed more encouragement to attempt a
+        fielded Suggestion at all, covering a range, negation, and grouping.
       </p>
       <input id="generic-freeform" type="search" placeholder="e.g. French books by Verne from the 1870s" />
       <query-shaper
         for="generic-freeform"
         fields="title, author, language:iso-639-1, date (allowed patterns YYYY[-MM[-DD]]), categories (comma-separated list)"
+        examples='[
+          {"input":"French novels from the 1920s","suggestions":["language:fr AND date:[1920 TO 1929]","french novels 1920s"]},
+          {"input":"books by Verne in French","suggestions":["author:\"jules verne\" AND language:fr"]},
+          {"input":"novels not in english, from before 1950","suggestions":["-language:en AND date:[* TO 1950]"]},
+          {"input":"adventure or mystery novels in french","suggestions":["(categories:adventure OR categories:mystery) AND language:fr"]},
+          {"input":"vernes novels","suggestions":["author:\"jules verne\"","verne&apos;s novels"]}
+        ]'
       ></query-shaper>
     </section>
 
     <section>
       <h2>6. Inline JSON Fields</h2>
       <p>
-        The more precise, structured declaration path. Also declares
-        <code>examples</code>, demonstrating a comparison rendered as a
-        real Lucene range and correct usage of the boolean field.
+        The more precise, structured declaration path. <code>examples</code>
+        cover a range, the boolean field, negation, a grouped OR, a typo,
+        and a vague input deliberately given five varied Suggestions mixing
+        fielded and plain-rewording styles.
       </p>
       <input id="generic-json" type="search" placeholder="e.g. electronics under $50 in stock" />
       <query-shaper
@@ -160,7 +200,11 @@
         fields='[{"name":"category"},{"name":"price","type":"number"},{"name":"in_stock","type":"boolean"}]'
         examples='[
           {"input":"electronics under $50","suggestions":["category:electronics AND price:[0 TO 50]","cheap electronics"]},
-          {"input":"laptops in stock","suggestions":["category:laptop AND in_stock:true"]}
+          {"input":"laptops in stock","suggestions":["category:laptop AND in_stock:true"]},
+          {"input":"cheap electronics, not laptops","suggestions":["category:electronics AND -category:laptop AND price:[0 TO 50]"]},
+          {"input":"electronics or gadgets under $50","suggestions":["(category:electronics OR category:gadgets) AND price:[0 TO 50]"]},
+          {"input":"electroncis under $50","suggestions":["category:electronics AND price:[0 TO 50]","electronics under $50"]},
+          {"input":"cheap stuff","suggestions":["price:[0 TO 20]","category:electronics AND price:[0 TO 20]","affordable items","budget electronics","discounted electronics"]}
         ]'
       ></query-shaper>
     </section>

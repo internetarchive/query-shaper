@@ -307,6 +307,56 @@ describe('QueryShaper generation', () => {
     expect((suggestionEvents[0] as string[]).at(0)).toBe('climate change')
   })
 
+  it('shows a suggestion that is entirely one range verbatim in the lucene format, rather than dropping it', async () => {
+    const lm = mockLanguageModel({
+      promptResponse: { suggestions: ['price:[0 TO 20]'] },
+    })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+    shaper.setAttribute('fields', '[{"name":"price"}]')
+    shaper.setAttribute('format', 'lucene')
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const suggestionEvents: unknown[] = []
+    shaper.addEventListener('query-shaper-suggestions', (e) => {
+      suggestionEvents.push((e as CustomEvent).detail.suggestions)
+    })
+
+    input.value = 'cheap stuff'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
+
+    expect(suggestionEvents[0]).toEqual(['price:[0 TO 20]'])
+  })
+
+  it('drops a suggestion that is entirely one range for a non-lucene format, since nothing is left to render', async () => {
+    const lm = mockLanguageModel({
+      promptResponse: { suggestions: ['price:[0 TO 20]', 'cheap stuff'] },
+    })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+    shaper.setAttribute('fields', '[{"name":"price"}]')
+    shaper.setAttribute('format', 'url-params')
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const suggestionEvents: unknown[] = []
+    shaper.addEventListener('query-shaper-suggestions', (e) => {
+      suggestionEvents.push((e as CustomEvent).detail.suggestions)
+    })
+
+    input.value = 'cheap stuff'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(suggestionEvents).toHaveLength(1))
+
+    expect(suggestionEvents[0]).toEqual(['q=cheap+stuff'])
+  })
+
   it('drops a suggestion whose query structure cannot be parsed', async () => {
     const lm = mockLanguageModel({
       promptResponse: { suggestions: ['title:climate AND year:', 'climate change'] },

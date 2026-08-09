@@ -1,4 +1,4 @@
-import { extractFieldValues } from './lucene-parser.js'
+import { extractFieldValues, type ParsedSuggestion } from './lucene-parser.js'
 
 export type FieldDescriptor = {
   name: string
@@ -557,14 +557,18 @@ export class QueryShaper extends HTMLElement {
   // Every suggestion is always written by the model as a Lucene-style string (see
   // GENERIC_INSTRUCTION) and converted, by the caller, into the FieldValue[] tuples
   // #renderFormat already knows how to render — see lucene-parser.ts for the grammar
-  // covered. `fields` is null when `raw` failed to parse (genuinely malformed structured
-  // query); a suggestion that references a field despite none being declared for this
-  // instance is also dropped entirely rather than shown broken or untrustworthy.
-  #renderSuggestion(raw: string, fields: FieldValue[] | null, allowExpression: boolean): string | null {
-    if (fields === null) return null
-    if (!allowExpression && fields.some((f) => f.field)) return null
+  // covered. `parsed` is null when `raw` failed to parse (genuinely malformed structured
+  // query) — always dropped. A suggestion referencing a field despite none being declared
+  // for this instance is also dropped. `parsed.fields` can legitimately be empty (e.g. a
+  // suggestion that's entirely one range) — 'lucene' still renders that verbatim, since
+  // the raw text is valid syntax with nothing to reconstruct; every other Format has
+  // nothing left to render, so it's dropped there instead.
+  #renderSuggestion(raw: string, parsed: ParsedSuggestion | null, allowExpression: boolean): string | null {
+    if (parsed === null) return null
+    if (!allowExpression && parsed.hasFieldReference) return null
     if (this.format === 'lucene') return raw.trim()
-    return this.#renderFormat(fields)
+    if (parsed.fields.length === 0) return null
+    return this.#renderFormat(parsed.fields)
   }
 
   // Only ever called for 'url-params'/'simple-query-string'/a custom FormatRenderer —

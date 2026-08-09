@@ -318,7 +318,9 @@ function applySuffixes(node: TermNode, cursor: Cursor): TermNode | null {
  * children uses the same operator (no mixing AND/OR within one group) and none of them
  * is itself a nested group — otherwise the boolean structure can't survive being
  * flattened into query-shaper's flat FieldValue[] shape, so the whole suggestion is
- * dropped rather than rendering something that silently changes meaning. */
+ * dropped rather than rendering something that silently changes meaning. A group made
+ * up entirely of ranges (empty result) is not itself an error — see flatten() below for
+ * why an empty tuple list and a hard failure are kept distinct. */
 function flattenGroup(group: GroupNode): FieldValue[] | null {
   const opsUsed = new Set(group.items.slice(1).map((n) => n.op ?? 'AND'))
   if (opsUsed.size > 1) return null
@@ -334,9 +336,14 @@ function flattenGroup(group: GroupNode): FieldValue[] | null {
     else if (item.op) value.operator = item.op
     out.push(value)
   }
-  return out.length > 0 ? out : null
+  return out
 }
 
+/** Returns null only for a genuine structural failure (a nested/mixed-operator group)
+ * propagated from flattenGroup — an empty array is a legitimate result (e.g. a
+ * suggestion that's entirely one range, which has no flat-tuple representation but is
+ * still perfectly valid syntax) and must not be conflated with a hard parse error, since
+ * the two are handled differently by the caller (see extractFieldValues below). */
 function flatten(nodes: Node[]): FieldValue[] | null {
   const out: FieldValue[] = []
   for (const node of nodes) {
@@ -355,24 +362,46 @@ function flatten(nodes: Node[]): FieldValue[] | null {
     else if (node.op) value.operator = node.op
     out.push(value)
   }
-  return out.length > 0 ? out : null
+  return out
 }
 
-export function extractFieldValues(text: string): FieldValue[] | null {
+/** True if any node (including one that flattens away, like a range, and including
+ * inside groups) references a field — used to catch a suggestion that references an
+ * undeclared field even when that reference never makes it into the flat tuple array. */
+function referencesAnyField(nodes: Node[]): boolean {
+  return nodes.some((node) => {
+    if (node.type === 'group') return node.field !== undefined || referencesAnyField(node.items)
+    return node.field !== undefined
+  })
+}
+
+export type ParsedSuggestion = { fields: FieldValue[]; hasFieldReference: boolean }
+
+/** Returns null only for a suggestion that fails to parse as valid Lucene-style syntax
+ * at all (a syntax error, or a nested/mixed-operator group) — the whole suggestion
+ * should be dropped in that case. Otherwise returns the flat FieldValue[] tuples
+ * `#renderFormat` can render (possibly empty — e.g. a suggestion that's entirely one
+ * range or one all-range group has valid syntax but nothing left to flatten, which is
+ * why `format="lucene"` still renders it verbatim rather than treating it as dropped —
+ * see #renderSuggestion in query-shaper.ts) plus whether any field was referenced
+ * anywhere, even where that reference didn't survive into the flat tuples. */
+export function extractFieldValues(text: string): ParsedSuggestion | null {
   const trimmed = text.trim()
   if (trimmed.length === 0) return null
 
   if (WRAPPED_IN_QUOTES.test(trimmed)) {
-    return [{ value: unwrapQuotes(trimmed) }]
+    return { fields: [{ value: unwrapQuotes(trimmed) }], hasFieldReference: false }
   }
 
   if (!hasQueryStructure(trimmed)) {
-    return [{ value: trimmed }]
+    return { fields: [{ value: trimmed }], hasFieldReference: false }
   }
 
   const tokens = tokenize(trimmed)
   if (tokens === null) return null
   const nodes = parse(tokens)
   if (nodes === null) return null
-  return flatten(nodes)
+  const fields = flatten(nodes)
+  if (fields === null) return null
+  return { fields, hasFieldReference: referencesAnyField(nodes) }
 }

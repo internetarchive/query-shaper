@@ -233,20 +233,38 @@ query-shaper's Formats can faithfully represent, not full Lucene:
 - **Extended grammar** (parsed, then downgraded or dropped per Format):
   parenthesized groups (flattened if every clause inside shares one
   operator and none is itself nested; dropped otherwise), field-scoped
-  groups (`category:(a OR b)`), ranges (`field:[X TO Y]`, dropped — no
-  Format has a way to represent one), wildcards (kept as literal
+  groups (`category:(a OR b)`), ranges (`field:[X TO Y]`, including an
+  open-ended `*` bound on either side — no flat-tuple representation, so
+  the range condition itself contributes nothing to the tuple array; see
+  below for what that means per Format), wildcards (kept as literal
   characters), fuzzy (`~`/`~N`, stripped), boost (`^N`, stripped).
-- **Failure**: a syntax error (unterminated quote/range/paren, a field
-  with no value) drops the whole Suggestion rather than showing broken
-  text.
+- **Failure**: a genuine syntax error (unterminated quote/range/paren, a
+  field with no value, a nested or mixed-operator group) drops the whole
+  Suggestion rather than showing broken text. This is distinct from a
+  Suggestion that parses validly but flattens to an *empty* tuple array —
+  e.g. one that's entirely a single range condition — which is not an
+  error; see below for how the two are handled differently.
+
+`extractFieldValues` also tracks, separately from the flat tuple array,
+whether *any* field was referenced anywhere in the parse — including
+inside a range, which never makes it into the tuple array at all. This is
+what lets the "no Fields declared → drop a Suggestion referencing one
+anyway" rule (see Element API's `fields` entry) catch a bare range on an
+undeclared field, even though the range itself contributes nothing to the
+tuples the guard would otherwise have to inspect.
 
 For `format="lucene"`, a Suggestion that passes the parseability check is
 rendered **verbatim** — there's no reconstruction step, since the model's
-text is already meant to be Lucene. Every other Format (`url-params`,
-`simple-query-string`, a custom `.format` function) renders the parsed
-`{ field?, value, operator? }` tuples through the same deterministic
-rendering rules as before (quoting a multi-word value, applying an
-operator's Format-specific meaning, etc.).
+text is already meant to be Lucene, and this holds even when the flat
+tuple array is empty (a Suggestion that's entirely one range is still
+valid, useful Lucene text — e.g. `price:[0 TO 20]` — so it's shown as-is,
+not dropped). Every other Format (`url-params`, `simple-query-string`, a
+custom `.format` function) renders the parsed `{ field?, value, operator?
+}` tuples through the same deterministic rendering rules as before
+(quoting a multi-word value, applying an operator's Format-specific
+meaning, etc.) — and since a range never produces a tuple, a Suggestion
+that's entirely one range has nothing left to render for these Formats,
+so it's dropped there specifically.
 
 ## Generation flow
 
