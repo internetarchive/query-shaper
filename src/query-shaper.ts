@@ -764,9 +764,26 @@ export class QueryShaper extends HTMLElement {
     if (availability === 'downloading') {
       this.#emitStatus('downloading')
     }
+    await this.#establishSession(LM)
+  }
+
+  // A debounced generation attempt that fires while the session is still establishing
+  // finds `#session` unset and simply returns (see #generateInner) — nothing re-triggers
+  // it once the session becomes ready, so whatever the user already typed and stopped on
+  // would otherwise never get searched. Checked here, right after the session is ready,
+  // for both the focus-triggered path and the public download() path.
+  async #establishSession(LM: LanguageModelAPI): Promise<void> {
     this.#session = await this.#createSession(LM)
     this.#downloadPromptContainer.innerHTML = ''
     this.#emitStatus('available')
+    this.#checkForPendingSearch()
+  }
+
+  #checkForPendingSearch(): void {
+    const trimmed = (this.target?.value ?? '').trim()
+    if (trimmed.length === 0 || trimmed === this.#lastRequestedText) return
+    clearTimeout(this.#debounceTimer)
+    void this.#generate()
   }
 
   #primedFieldsSnapshot: string | null | undefined
@@ -864,9 +881,7 @@ export class QueryShaper extends HTMLElement {
   async download(): Promise<void> {
     const LM = (globalThis as { LanguageModel?: LanguageModelAPI }).LanguageModel
     if (!LM) return
-    this.#session = await this.#createSession(LM)
-    this.#downloadPromptContainer.innerHTML = ''
-    this.#emitStatus('available')
+    await this.#establishSession(LM)
   }
 }
 

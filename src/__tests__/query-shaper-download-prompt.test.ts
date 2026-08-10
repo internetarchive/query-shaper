@@ -103,6 +103,26 @@ describe('QueryShaper download prompt', () => {
     expect(statusEvents).toEqual(['downloadable', 'available'])
   })
 
+  it('fires the pending search once download() finishes, even if typed before the model was ready', async () => {
+    const lm = mockLanguageModel({ availability: 'downloadable', promptResponse: { suggestions: [] } })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+    shaper.setAttribute('headless', '')
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.availability).toHaveBeenCalledTimes(1))
+
+    // Typed and paused while still downloadable — no session yet, nothing to prompt.
+    input.value = 'climate change'
+    input.dispatchEvent(new Event('input'))
+    await new Promise((resolve) => setTimeout(resolve, 450))
+    expect(lm.clonedSession.prompt).not.toHaveBeenCalled()
+
+    await shaper.download()
+
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
+  })
+
   it('shows an informational message with no buttons when status is downloading', async () => {
     const lm = mockLanguageModel({ availability: 'downloading' })
     let resolveCreate: (session: unknown) => void = () => {}

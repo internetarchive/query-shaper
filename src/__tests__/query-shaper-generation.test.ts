@@ -15,6 +15,36 @@ describe('QueryShaper generation', () => {
     localStorage.clear()
   })
 
+  it('fires the pending search once the session finishes establishing, even if the user already stopped typing', async () => {
+    const lm = mockLanguageModel({ availability: 'available', promptResponse: { suggestions: [] } })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    let resolveCreate: (session: unknown) => void = () => {}
+    const deferredCreate = new Promise((resolve) => {
+      resolveCreate = resolve
+    })
+    lm.create.mockReturnValueOnce(deferredCreate)
+    const { input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.availability).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(lm.create).toHaveBeenCalledTimes(1))
+
+    // The user types and pauses, all while the session is still establishing (create()
+    // hasn't resolved yet) — the debounced attempt has nothing to prompt against.
+    input.value = 'climate change'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    expect(lm.clonedSession.prompt).not.toHaveBeenCalled()
+
+    // The session finishes establishing after the fact — the already-typed text should
+    // still get searched, without the user having to type anything else.
+    resolveCreate(lm.baseSession)
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
+
+    const [promptText] = lm.clonedSession.prompt.mock.calls[0] as [string, unknown]
+    expect(promptText).toContain('climate change')
+  })
+
   it('skips generating again when only leading/trailing whitespace changed', async () => {
     const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm

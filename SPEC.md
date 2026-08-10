@@ -304,7 +304,15 @@ so it's dropped there specifically.
      that result only means the browser/hardware *can* run a model, not
      that this instance is ready to serve a query yet, and on a cold page
      establishing the grandparent's own session can itself take several
-     seconds.
+     seconds. If the user types and pauses — or types, pauses, then leaves
+     the Target — before this finishes, that debounced attempt finds no
+     session yet and simply returns (see step 2); nothing else would ever
+     retry it. So once the session actually becomes ready (here, in
+     `download()` below, and in the `downloading` case's own follow-up
+     establishment), query-shaper checks the Target's current value against
+     the last text actually searched and, if they differ, fires a
+     generation for it immediately — without waiting for another debounced
+     pause or a fresh `input` event.
    - `downloadable` → (unless `headless`) show an unobtrusive inline message
      inviting the user to enable client-side search enhancement, with a
      button to trigger the download and a dismiss option. Dismissal is
