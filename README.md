@@ -14,6 +14,8 @@ is:
   natural language input, once you describe your search fields
 - **Typo corrections** — likely misspellings caught and corrected before the
   search runs
+- **Completions** — an unfinished word or phrase finished out, without
+  making the user type the rest
 - **Query expansions** — related terms, synonyms, and alternate phrasings
   that widen recall without the user having to think of them
 
