@@ -48,6 +48,31 @@
         font-weight: 600;
         color: #444;
       }
+      .status-banner {
+        padding: 0.75em 1em;
+        border-radius: 8px;
+        margin-block: 0 1.5em;
+        font-weight: 600;
+      }
+      .status-banner a {
+        color: inherit;
+        text-decoration: underline;
+      }
+      .status-banner--red {
+        background: #fdecea;
+        color: #611a15;
+        border: 1px solid #f5c2c0;
+      }
+      .status-banner--orange {
+        background: #fff4e5;
+        color: #663c00;
+        border: 1px solid #ffd591;
+      }
+      .status-banner--green {
+        background: #eaf7ed;
+        color: #1e4620;
+        border: 1px solid #b7dfc0;
+      }
       query-shaper {
         position: relative;
         display: block;
@@ -61,6 +86,9 @@
   </head>
   <body>
     <h1>Query Shaper — Demo</h1>
+    <div id="status-banner" class="status-banner status-banner--orange" role="status">
+      Checking on-device AI availability…
+    </div>
     <p>
       Each instance below enhances a plain search input with on-device AI
       Suggestions — plain rewordings (typo fixes, finished-out phrases,
@@ -351,6 +379,45 @@
         document.querySelector('#generic-custom-shaper').format = (fields) =>
           fields.map((f) => `${f.field ?? 'q'}=${f.value}`).join(';')
       })
+    </script>
+    <script type="module">
+      const banner = document.querySelector('#status-banner')
+
+      function setBanner(level, html) {
+        banner.className = `status-banner status-banner--${level}`
+        banner.innerHTML = html
+      }
+
+      const RED =
+        'Your browser doesn\'t support the on-device AI Prompt API. Use desktop ' +
+        'Google Chrome 138+ with <a href="https://developer.chrome.com/docs/ai/prompt-api#hardware-requirements">' +
+        'adequate hardware resources</a>.'
+
+      if (!('LanguageModel' in self)) {
+        setBanner('red', RED)
+      } else {
+        setBanner(
+          'orange',
+          'Click into one of the search boxes below to load the on-device model — the first load can take several seconds.',
+        )
+        let settled = false
+        document.querySelectorAll('query-shaper').forEach((shaper) => {
+          shaper.addEventListener('query-shaper-status', (e) => {
+            if (settled) return
+            const status = e.detail.status
+            if (status === 'unavailable') {
+              settled = true
+              setBanner('red', RED)
+            } else if (status === 'available') {
+              settled = true
+              setBanner(
+                'green',
+                'Model loaded — start typing a natural-language query and pause for a few seconds to see Suggestions.',
+              )
+            }
+          })
+        })
+      }
     </script>
   </body>
 </html>
