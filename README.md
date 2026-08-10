@@ -57,10 +57,6 @@ npm run build      # emits the npm package + CDN bundle to ./dist
 npm run build:site # assembles a deployable copy of the landing/demo/docs pages in ./site
 ```
 
-Or via Docker: `docker build -t query-shaper-site . && docker run -p 8080:80
-query-shaper-site` runs `build:site` and serves the result with nginx — nothing
-else needed, since query-shaper is entirely client-side.
-
 Session lifecycle and generation are logged to the console (timestamped,
 prefixed `[query-shaper <time>]`) whenever the component is loaded via `npm
 run dev` — status transitions, session/parent establishment timing, the
@@ -69,6 +65,33 @@ and raw Suggestions sent/received per query, how each Suggestion parsed,
 retries, aborts, and final Suggestion counts. This is dev-only: it's gated
 on `import.meta.env.DEV`, which Vite replaces and tree-shakes away entirely
 in `npm run build` — none of it ships in `dist/`.
+
+## Docker
+
+The `Dockerfile` is multi-stage — `dev` and `build` are for local development
+and CI; `runtime`, the default target (what plain `docker build .` produces),
+is the only one meant for an actual deployment.
+
+**Dev** — runs the Vite dev server in watch mode. Bind-mount the repo over
+`/app` so edits on your machine take effect immediately; the extra anonymous
+volume on `/app/node_modules` keeps the image's own install from being
+shadowed by whatever (or whatever's missing) in your local `node_modules`:
+
+```sh
+docker build --target dev -t query-shaper:dev .
+docker run --rm -p 5173:5173 -v "$PWD":/app -v /app/node_modules query-shaper:dev
+# -> http://localhost:5173/demo/ (also /docs/, / for the landing page)
+```
+
+**Prod** — runs `typecheck`/`lint`/`test`/`build:site` in an intermediate
+stage, then serves the result with nginx as an unprivileged user (no Node in
+the final image at all, since query-shaper is entirely client-side):
+
+```sh
+docker build -t query-shaper .
+docker run --rm -p 8080:8080 query-shaper
+# -> http://localhost:8080/
+```
 
 ## License
 
