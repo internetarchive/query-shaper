@@ -444,6 +444,16 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
         whether <code>&lt;query-shaper&gt;</code> renders its own popup at all, <code>action</code>
         controls what <code>accept()</code> does once called — by either popup.
       </p>
+      <p>
+        Want to call your own function when a Suggestion is accepted, rather than fill/submit/
+        navigate/write? <code>action="none"</code> plus a <code>query-shaper-accept</code>
+        listener already gives you exactly that — <code>detail.suggestion</code> is the precise
+        text of whichever Suggestion was accepted, not just notice that something was:
+      </p>
+      <pre><code>&lt;query-shaper for="search" action="none"&gt;&lt;/query-shaper&gt;</code></pre>
+      <pre><code>shaper.addEventListener('query-shaper-accept', (e) =&gt; {
+  myExistingFunction(e.detail.suggestion)
+})</code></pre>
     </section>
 
     <section id="history">
