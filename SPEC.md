@@ -208,11 +208,11 @@ rendering" note below for exactly what's parsed, downgraded, or dropped.
 
 This collapses what were previously four separate Suggestion kinds
 (Correction, Completion, Expansion, Expression) into one undifferentiated
-string. That's a deliberate simplification, not an oversight: extensive
-live testing found the model repeatedly crossing the boundaries between
-kinds — a Completion firing on already-complete text, a Correction doing
-Expansion's job, near-duplicate Suggestions differing only in which kind
-label was attached — and no amount of instruction-wording made the
+string (ADR-0007). That's a deliberate simplification, not an oversight:
+extensive live testing found the model repeatedly crossing the boundaries
+between kinds — a Completion firing on already-complete text, a Correction
+doing Expansion's job, near-duplicate Suggestions differing only in which
+kind label was attached — and no amount of instruction-wording made the
 distinction reliable. Removing the boundary removes the failure mode
 structurally: there's no kind left for the model to get wrong.
 

@@ -31,9 +31,10 @@ built-in AI APIs, query interpretation:
 ## Status
 
 Early development, pre-release (`0.0.1`, unpublished). The core behavior
-tracked in `SPEC.md` — Correction/Completion/Expansion/Expression
-generation, the `lucene`/`url-params`/`simple-query-string` Formats,
-Actions, History, the accessible popup UI, and the demo page — is
+tracked in `SPEC.md` — Suggestion generation (one Lucene-style string per
+Suggestion, decomposed and re-rendered internally; Fields/Examples/Notes
+drive fielded reformulation), the `lucene`/`url-params`/`simple-query-string`
+Formats, Actions, History, the accessible popup UI, and the demo page — is
 implemented; see `CONTEXT.md` for the vocabulary and `docs/adr/` for the
 hardest-to-reverse architectural calls.
 
