@@ -387,10 +387,20 @@ so it's dropped there specifically.
    trailing whitespace (the trimmed Search Text is unchanged) never starts
    a new call at all — pure cursor movement never reaches this point either,
    since it doesn't fire an `input` event in the first place. When a pause
-   *does* produce a genuinely different Search Text, the previous in-flight
-   call is aborted (`AbortSignal`, which the Prompt API's `prompt()`
-   supports) rather than merely ignored, so the device stops spending
-   compute on a call whose result is about to be discarded anyway.
+   *does* produce a genuinely different Search Text, or the Search Text is
+   cleared entirely, the previous in-flight child's session is both
+   aborted (`AbortSignal`, which the Prompt API's `prompt()` supports) and
+   immediately `destroy()`ed — not merely aborted. Live diagnostics found
+   that `AbortSignal` cancellation alone does not reliably free Chrome's
+   on-device engine for the next call: the aborted computation keeps
+   running to completion regardless of the signal, serially blocking later
+   calls that need the same engine; `destroy()` is what actually and
+   quickly frees it (ADR-0008). Blurring the Target while a generation is
+   still in flight does *not* destroy it immediately — an immediate
+   destroy-on-blur could discard good in-flight work if the user briefly
+   tabs away and refocuses without retyping — instead it schedules a
+   destroy after a short grace period (a few seconds), canceled if the
+   Target is refocused before it elapses.
 
    A rendered Suggestion identical (after trimming) to the current Search
    Text is dropped before rendering — every Suggestion is meant to be a
