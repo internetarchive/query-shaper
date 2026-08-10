@@ -751,14 +751,21 @@ export class QueryShaper extends HTMLElement {
     const availability = await devTimed(`${this.#tag()} availability()`, () =>
       LM.availability(languageModelOptions()),
     )
-    this.#emitStatus(availability)
-    if (availability === 'available' || availability === 'downloading') {
-      this.#session = await this.#createSession(LM)
-      this.#downloadPromptContainer.innerHTML = ''
-      if (availability === 'downloading') {
-        this.#emitStatus('available')
-      }
+    if (availability !== 'available' && availability !== 'downloading') {
+      this.#emitStatus(availability)
+      return
     }
+    // Emitting 'available' here, rather than as soon as availability() resolves, is
+    // deliberate: availability() only says the browser/hardware *can* run a model, not
+    // that this instance's session is ready to serve a query yet — that still requires
+    // #createSession() to finish (including, on a cold page, the grandparent's own
+    // create() call, which can itself take several seconds).
+    if (availability === 'downloading') {
+      this.#emitStatus('downloading')
+    }
+    this.#session = await this.#createSession(LM)
+    this.#downloadPromptContainer.innerHTML = ''
+    this.#emitStatus('available')
   }
 
   #primedFieldsSnapshot: string | null | undefined

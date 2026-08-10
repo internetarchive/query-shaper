@@ -33,6 +33,33 @@ describe('QueryShaper session lifecycle', () => {
     expect(lm.baseSession.clone).toHaveBeenCalledTimes(1)
   })
 
+  it('does not emit an available status until the session is actually established', async () => {
+    const lm = mockLanguageModel({ availability: 'available' })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    let resolveCreate: (session: unknown) => void = () => {}
+    const deferredCreate = new Promise((resolve) => {
+      resolveCreate = resolve
+    })
+    lm.create.mockReturnValueOnce(deferredCreate)
+    const { shaper, input } = mount()
+    const statusEvents: string[] = []
+    shaper.addEventListener('query-shaper-status', (e) => {
+      statusEvents.push((e as CustomEvent).detail.status)
+    })
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.availability).toHaveBeenCalledTimes(1))
+
+    // availability() has resolved (the model can be used in principle), but the
+    // grandparent/parent session isn't established yet — nothing is actually ready to
+    // serve a query, so no status should have been emitted yet.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(statusEvents).toEqual([])
+
+    resolveCreate(lm.baseSession)
+    await vi.waitFor(() => expect(statusEvents).toEqual(['available']))
+  })
+
   it('emits a downloadable status without creating a session when the model needs downloading', async () => {
     const lm = mockLanguageModel({ availability: 'downloadable' })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm

@@ -276,7 +276,13 @@ so it's dropped there specifically.
      system instruction via `initialPrompts`); this instance's "parent" is
      `clone()`d from it and primed once with this instance's Fields
      description via `append()`. The parent is reused for this instance
-     going forward — but never prompted directly; see step 2.
+     going forward — but never prompted directly; see step 2. The
+     `query-shaper-status` event carrying `available` fires only once this
+     is actually done, never as soon as `availability()` itself resolves —
+     that result only means the browser/hardware *can* run a model, not
+     that this instance is ready to serve a query yet, and on a cold page
+     establishing the grandparent's own session can itself take several
+     seconds.
    - `downloadable` → (unless `headless`) show an unobtrusive inline message
      inviting the user to enable client-side search enhancement, with a
      button to trigger the download and a dismiss option. Dismissal is
