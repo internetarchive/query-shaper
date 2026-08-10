@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Query Shaper — Docs</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 46rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        line-height: 1.5;
+      }
+      h1 {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      section {
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        margin-block: 1.5rem;
+        scroll-margin-top: 4.5rem;
+      }
+      section h2 {
+        margin-top: 0;
+      }
+      code {
+        background: #f5f5f5;
+        padding: 0.1em 0.3em;
+      }
+      pre {
+        background: #f5f5f5;
+        padding: 0.75em;
+        overflow-x: auto;
+        white-space: pre;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-block: 1em;
+      }
+      th,
+      td {
+        text-align: left;
+        vertical-align: top;
+        padding: 0.5em 0.6em;
+        border-bottom: 1px solid #ddd;
+        font-size: 0.95em;
+      }
+      th {
+        border-bottom: 2px solid #999;
+      }
+      nav.toc {
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        margin-block: 1.5rem;
+      }
+      nav.toc h2 {
+        margin-top: 0;
+        font-size: 1rem;
+      }
+      nav.toc ul {
+        columns: 2;
+        margin: 0;
+        padding-left: 1.2em;
+      }
+      aside.later {
+        border: 1px dashed #bbb;
+        border-radius: 8px;
+        padding: 0.75em 1em;
+        margin-block: 1.5rem;
+        color: #555;
+        font-size: 0.95em;
+      }
+
+      #docs-search-bar {
+        position: sticky;
+        top: 0;
+        background: #fff;
+        padding-block: 0.75rem;
+        z-index: 20;
+        display: none;
+      }
+      #docs-search-bar.visible {
+        display: block;
+      }
+      #docs-search-input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.6em 0.9em;
+        font-size: 1rem;
+        border: 1px solid #aaa;
+        border-radius: 6px;
+      }
+      #docs-search-note {
+        margin-block: 0.4em 0;
+        font-size: 0.85em;
+        color: #555;
+        min-height: 1.2em;
+      }
+      #docs-search-results {
+        list-style: none;
+        margin: 0.3em 0 0;
+        padding: 0;
+      }
+      #docs-search-results li {
+        margin-block: 0.2em;
+      }
+      #docs-search-results a {
+        display: block;
+        padding: 0.4em 0.6em;
+        border-radius: 4px;
+        background: #f0f4ff;
+        text-decoration: none;
+        color: #1a3d8f;
+      }
+      #docs-search-results a:hover {
+        background: #dce6ff;
+      }
+      #docs-download-prompt button {
+        margin-inline-start: 0.5em;
+      }
+
+      query-shaper {
+        position: relative;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>&lt;Query-Shaper for="Docs"&gt;</h1>
+    <p>
+      How to attach <code>&lt;query-shaper&gt;</code> to a search input on your own page. For the
+      design rationale behind these decisions, see this repo's <code>SPEC.md</code>,
+      <code>CONTEXT.md</code>, and <code>docs/adr/</code> instead — this page is written for
+      integrators, not maintainers.
+    </p>
+
+    <div id="docs-search-bar">
+      <input
+        id="docs-search-input"
+        type="search"
+        placeholder="Ask a question about integrating query-shaper…"
+      />
+      <query-shaper
+        id="docs-search-shaper"
+        for="docs-search-input"
+        headless
+        action="none"
+        format="lucene"
+        fields='[{"name":"section","description":"one of: requirements, installation, quick-start, fields, examples-notes, format, actions, history, headless, reference"}]'
+        examples='[
+          {"input":"what chrome version and hardware do I need","suggestions":["section:requirements"]},
+          {"input":"how do I install query-shaper on my page","suggestions":["section:installation"]},
+          {"input":"show me a minimal working example","suggestions":["section:quick-start"]},
+          {"input":"how do I tell it about my search backend fields","suggestions":["section:fields"]},
+          {"input":"how do I stop it writing prose instead of real field value syntax","suggestions":["section:examples-notes"]},
+          {"input":"how do I change the output format for my backend","suggestions":["section:format"]},
+          {"input":"how do I make accepting a suggestion submit the form","suggestions":["section:actions"]},
+          {"input":"how do I keep track of what the user searched before","suggestions":["section:history"]},
+          {"input":"how do I build my own custom suggestion popup","suggestions":["section:headless"]},
+          {"input":"what attributes and events are available","suggestions":["section:reference"]}
+        ]'
+      ></query-shaper>
+      <p id="docs-search-note"></p>
+      <ul id="docs-search-results"></ul>
+    </div>
+
+    <nav class="toc">
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#requirements">Requirements</a></li>
+        <li><a href="#installation">Installation</a></li>
+        <li><a href="#quick-start">Quick Start</a></li>
+        <li><a href="#fields">Fields</a></li>
+        <li><a href="#examples-notes">Examples &amp; Notes</a></li>
+        <li><a href="#format">Format</a></li>
+        <li><a href="#actions">Actions &amp; Destination</a></li>
+        <li><a href="#history">History</a></li>
+        <li><a href="#headless">Headless mode &amp; Events</a></li>
+        <li><a href="#reference">Full reference</a></li>
+      </ul>
+    </nav>
+
+    <section id="requirements">
+      <h2>Requirements</h2>
+      <p>
+        <code>&lt;query-shaper&gt;</code> only works in desktop Google Chrome 138+, with
+        <a href="https://developer.chrome.com/docs/ai/prompt-api#hardware-requirements"
+          >adequate hardware resources</a
+        >
+        for the on-device model. Everywhere else — an unsupported browser, or supported Chrome on
+        underpowered hardware — it's a no-op: the Target keeps working exactly like a plain
+        <code>&lt;input&gt;</code>/<code>&lt;textarea&gt;</code>, no Suggestions, no errors. Treat
+        it as a progressive enhancement, never a requirement for your search box to function.
+      </p>
+    </section>
+
+    <section id="installation">
+      <h2>Installation</h2>
+      <p>
+        <code>query-shaper</code> isn't published to npm yet, and there's no CDN/UMD build — only
+        an ES module. Two paths, depending on where the project is when you're reading this:
+      </p>
+      <h3>Right now</h3>
+      <pre><code>git clone &lt;this repo&gt;
+cd query-shaper
+npm install
+npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
+      <p>
+        Copy <code>dist/query-shaper.js</code> (and its <code>.d.ts</code> if you want types) into
+        your own project and self-host it, then either:
+      </p>
+      <pre><code>&lt;script type="module" src="/path/to/query-shaper.js"&gt;&lt;/script&gt;</code></pre>
+      <p>or, in a bundler-based project:</p>
+      <pre><code>import 'query-shaper/dist/query-shaper.js'</code></pre>
+      <p>
+        Either way, importing the module is enough — it registers
+        <code>&lt;query-shaper&gt;</code> as a custom element as a side effect. There's nothing to
+        call to initialize it.
+      </p>
+      <h3>Once published</h3>
+      <pre><code>npm install query-shaper</code></pre>
+      <pre><code>import 'query-shaper'</code></pre>
+      <p>
+        A plain <code>&lt;script src="..."&gt;</code> without <code>type="module"</code> will not
+        work — there's no non-module build.
+      </p>
+    </section>
+
+    <section id="quick-start">
+      <h2>Quick Start</h2>
+      <p>
+        Attach <code>&lt;query-shaper&gt;</code> to any <code>&lt;input&gt;</code>/<code
+          >&lt;textarea&gt;</code
+        >
+        by referencing its <code>id</code> via <code>for</code>:
+      </p>
+      <pre><code>&lt;input id="search" type="search" /&gt;
+&lt;query-shaper for="search"&gt;&lt;/query-shaper&gt;</code></pre>
+      <p>
+        That's the whole setup. On first focus (if the browser supports it), it establishes an
+        on-device model session. As the user types and pauses for a moment, Suggestions appear in
+        a built-in popup underneath the input; accepting one fills the input by default (see
+        <a href="#actions">Actions</a> for other behaviors). With no <code>fields</code> declared,
+        Suggestions stay plain rewordings — typo fixes, finished-out phrases, broader related
+        terms — never a fielded reformulation, since nothing was declared to reformulate against.
+      </p>
+    </section>
+
+    <section id="fields">
+      <h2>Fields</h2>
+      <p>
+        Declare what fields your backend supports so Suggestions can reformulate into
+        <code>field:value</code> syntax, via the <code>fields</code> attribute or
+        <code>.fields</code> property. Two forms — pick whichever fits:
+      </p>
+      <p><strong>Inline JSON</strong> — an array of field descriptors:</p>
+      <pre><code>&lt;query-shaper
+  for="search"
+  fields='[{"name":"category"},{"name":"price","type":"number"},{"name":"in_stock","type":"boolean"}]'
+&gt;&lt;/query-shaper&gt;</code></pre>
+      <p><strong>Free-form text</strong> — a human-written description:</p>
+      <pre><code>&lt;query-shaper
+  for="search"
+  fields="title, author, language:iso-639-1, date (allowed patterns YYYY[-MM[-DD]]), categories (comma-separated list)"
+&gt;&lt;/query-shaper&gt;</code></pre>
+      <p>
+        Without <code>fields</code>, the model is never told about any backend fields — a
+        Suggestion that references one anyway is dropped rather than shown broken.
+      </p>
+    </section>
+
+    <section id="examples-notes">
+      <h2>Examples &amp; Notes</h2>
+      <p>
+        Two optional, declarative levers for steering generation without touching code —
+        especially useful once <code>fields</code> is involved, since the model can otherwise
+        revert to describing a fielded intent in prose instead of committing to real
+        <code>field:value</code> syntax.
+      </p>
+      <p>
+        <strong><code>examples</code></strong> — few-shot input/Suggestions pairs, an array of
+        <code>{ input, suggestions }</code> (plural — one input can have more than one good
+        answer):
+      </p>
+      <pre><code>&lt;query-shaper
+  for="search"
+  fields='[{"name":"author"},{"name":"title"},{"name":"first_publish_year","type":"number"}]'
+  examples='[
+    {"input":"harry potter books published before 2000","suggestions":["title:\"harry potter\" AND first_publish_year:[1000 TO 2000]"]},
+    {"input":"books by asimov but not in french","suggestions":["author:\"isaac asimov\" AND -language:fr"]}
+  ]'
+&gt;&lt;/query-shaper&gt;</code></pre>
+      <p>
+        <strong><code>notes</code></strong> — free-form prose for domain-specific guidance that
+        doesn't fit the input/Suggestions pair shape — a business rule, a unit convention, a
+        disambiguation hint:
+      </p>
+      <pre><code>&lt;query-shaper
+  for="search"
+  notes="A book or series title (e.g. &amp;quot;Harry Potter&amp;quot;) always belongs in the title field, never author — only a real person's name belongs in author."
+&gt;&lt;/query-shaper&gt;</code></pre>
+      <p>
+        <code>examples</code> teaches by demonstration, <code>notes</code> teaches by instruction —
+        using both together is expected for a backend with real quirks. Both accept JSON or a
+        free-form string, same fallback rule as <code>fields</code>.
+      </p>
+    </section>
+
+    <section id="format">
+      <h2>Format</h2>
+      <p>
+        The model always writes every Suggestion as Lucene-style text, regardless of
+        <code>format</code> — <code>format</code> only controls how
+        <code>&lt;query-shaper&gt;</code> re-renders that text for your specific backend:
+      </p>
+      <ul>
+        <li>
+          <code>format="lucene"</code> (default) — the model's own text, used verbatim, since it's
+          already meant to be Lucene syntax.
+        </li>
+        <li>
+          <code>format="url-params"</code> — field/value pairs as URL query parameters. Add a
+          <code>base</code> attribute to compose a full URL instead of a bare query string.
+        </li>
+        <li>
+          <code>format="simple-query-string"</code> — the classic
+          <code>+required -excluded "exact phrase"</code> style (Elasticsearch's
+          <code>simple_query_string</code>, MySQL boolean full-text mode).
+        </li>
+        <li>
+          A custom <code>.format</code> property — a function over decomposed
+          <code>{ field?, value, operator? }</code> tuples, for shapes neither preset covers. Can
+          only be set imperatively (a function isn't expressible as an attribute):
+        </li>
+      </ul>
+      <pre><code>shaper.format = (fields) =&gt;
+  fields.map((f) =&gt; `${f.field ?? 'q'}=${f.value}`).join(';')</code></pre>
+    </section>
+
+    <section id="actions">
+      <h2>Actions &amp; Destination</h2>
+      <p>The <code>action</code> attribute controls what happens when a Suggestion is accepted:</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Value</th>
+            <th>Behavior</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>fill</code> (default)</td>
+            <td>Fills the Target with the Suggestion's text.</td>
+          </tr>
+          <tr>
+            <td><code>submit</code></td>
+            <td>Fills the Target, then submits its <code>&lt;form&gt;</code>.</td>
+          </tr>
+          <tr>
+            <td><code>opensearch</code></td>
+            <td>
+              Navigates via a <code>template</code> attribute holding a
+              <code>{searchTerms}</code>-style URL template.
+            </td>
+          </tr>
+          <tr>
+            <td><code>output</code></td>
+            <td>
+              Fills the Target, then also writes the Suggestion's text to the
+              <code>destination</code> attribute's matched element(s) (a CSS selector; defaults
+              to a built-in <code>&lt;output&gt;</code>).
+            </td>
+          </tr>
+          <tr>
+            <td><code>none</code></td>
+            <td>
+              Does nothing itself — <code>query-shaper-accept</code> still fires and History still
+              records, but the host handles everything else.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>action</code> is orthogonal to <code>headless</code>: <code>headless</code> controls
+        whether <code>&lt;query-shaper&gt;</code> renders its own popup at all, <code>action</code>
+        controls what <code>accept()</code> does once called — by either popup.
+      </p>
+    </section>
+
+    <section id="history">
+      <h2>History</h2>
+      <p>
+        A bounded, recycling record of prior finalized queries, persisted in
+        <code>localStorage</code> and fed back to the model as few-shot context. Each entry pairs
+        the <em>original</em> Search Text with the Suggestion that was Accepted for it — this
+        pairing, not just the final text, is what lets the model infer intent from precedent.
+      </p>
+      <ul>
+        <li><code>max-history</code> — cap on stored entries and how many feed into generation. Defaults to 10; <code>0</code> disables History entirely and clears any existing entries.</li>
+        <li><code>history-key</code> — overrides the <code>localStorage</code> partition key. Defaults to the Target's <code>id</code>; set this only when multiple instances should deliberately share one History.</li>
+      </ul>
+    </section>
+
+    <section id="headless">
+      <h2>Headless mode &amp; Events</h2>
+      <p>
+        Set the <code>headless</code> boolean attribute to render no popup UI at all — including
+        the built-in download-prompt messages — and drive your own UI entirely from events fired
+        on the <code>&lt;query-shaper&gt;</code> element itself:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Event</th>
+            <th><code>detail</code></th>
+            <th>Fires when</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>query-shaper-generating</code></td>
+            <td><code>{ searchText }</code></td>
+            <td>A debounced generation call actually starts.</td>
+          </tr>
+          <tr>
+            <td><code>query-shaper-suggestions</code></td>
+            <td><code>{ suggestions }</code></td>
+            <td>A new Suggestion set is ready (possibly empty).</td>
+          </tr>
+          <tr>
+            <td><code>query-shaper-accept</code></td>
+            <td><code>{ suggestion, action, url }</code></td>
+            <td>A Suggestion was Accepted.</td>
+          </tr>
+          <tr>
+            <td><code>query-shaper-status</code></td>
+            <td><code>{ status }</code></td>
+            <td>Model/session lifecycle transition.</td>
+          </tr>
+          <tr>
+            <td><code>query-shaper-error</code></td>
+            <td><code>{ error, phase }</code></td>
+            <td>A generation call failed.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        For a "searching" indicator, you don't need to correlate specific generations — a
+        superseded call's outcome is always silently discarded internally, so it's safe to just
+        show the indicator on any <code>query-shaper-generating</code> and hide it on any
+        <code>query-shaper-suggestions</code>/<code>query-shaper-error</code> that follows. If your
+        own input can go back to empty, also clear your rendered results immediately on your own
+        <code>input</code> listener rather than waiting for the library's — clearing is
+        debounced same as everything else, so there'd otherwise be a brief lag.
+      </p>
+      <p>
+        Since <code>headless</code> suppresses the built-in "Enable"/"downloading" messages too, a
+        headless host needs its own UI for the <code>downloadable</code>/<code>downloading</code>
+        statuses, and a way to actually trigger the download — that's what the public
+        <code>download()</code> method is for:
+      </p>
+      <pre><code>if (status === 'downloadable') {
+  // render your own "Enable" button, then on click:
+  shaper.download()
+}</code></pre>
+      <p>
+        The floating search box at the top of this page is itself exactly this kind of headless
+        instance — its Suggestions are section ids (<code>section:fields</code>, etc.) that this
+        page's own script turns into links, rather than search-backend syntax. Expand its markup
+        below:
+      </p>
+      <details>
+        <summary><code>&lt;query-shaper for="docs-search-input" headless ... /&gt;</code></summary>
+        <pre id="docs-search-markup"></pre>
+      </details>
+    </section>
+
+    <section id="reference">
+      <h2>Full reference</h2>
+      <h3>Attributes / properties</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>for</code></td>
+            <td>—</td>
+            <td>Required. The Target's <code>id</code>.</td>
+          </tr>
+          <tr>
+            <td><code>fields</code> / <code>.fields</code></td>
+            <td>unset</td>
+            <td>JSON array of field descriptors, or a free-form description string.</td>
+          </tr>
+          <tr>
+            <td><code>examples</code> / <code>.examples</code></td>
+            <td>unset</td>
+            <td>JSON array of <code>{ input, suggestions }</code>, or a free-form string.</td>
+          </tr>
+          <tr>
+            <td><code>notes</code> / <code>.notes</code></td>
+            <td>unset</td>
+            <td>Free-form prose primed alongside Fields/Examples.</td>
+          </tr>
+          <tr>
+            <td><code>format</code> / <code>.format</code></td>
+            <td><code>lucene</code></td>
+            <td><code>lucene</code> | <code>url-params</code> | <code>simple-query-string</code>, or a custom render function (property only).</td>
+          </tr>
+          <tr>
+            <td><code>base</code></td>
+            <td>current URL, query/fragment stripped</td>
+            <td>Root URL <code>format="url-params"</code> optionally composes a full URL onto.</td>
+          </tr>
+          <tr>
+            <td><code>action</code></td>
+            <td><code>fill</code></td>
+            <td><code>fill</code> | <code>submit</code> | <code>opensearch</code> | <code>output</code> | <code>none</code>.</td>
+          </tr>
+          <tr>
+            <td><code>template</code></td>
+            <td>—</td>
+            <td>Required for <code>action="opensearch"</code>. A <code>{searchTerms}</code> URL template.</td>
+          </tr>
+          <tr>
+            <td><code>destination</code></td>
+            <td>a built-in <code>&lt;output&gt;</code></td>
+            <td>CSS selector for <code>action="output"</code>'s write target(s).</td>
+          </tr>
+          <tr>
+            <td><code>max-suggestions</code></td>
+            <td>5</td>
+            <td>Cap on returned Suggestions.</td>
+          </tr>
+          <tr>
+            <td><code>max-history</code></td>
+            <td>10</td>
+            <td>Cap on stored/fed-back History entries. <code>0</code> disables and clears History.</td>
+          </tr>
+          <tr>
+            <td><code>history-key</code></td>
+            <td>the Target's <code>id</code></td>
+            <td>Overrides the <code>localStorage</code> partition key for History.</td>
+          </tr>
+          <tr>
+            <td><code>headless</code></td>
+            <td>off</td>
+            <td>Renders no popup UI; only emits events.</td>
+          </tr>
+          <tr>
+            <td><code>.download()</code></td>
+            <td>—</td>
+            <td>Triggers the model download when status is <code>downloadable</code> — for headless hosts, which never get the built-in button.</td>
+          </tr>
+        </tbody>
+      </table>
+      <h3>Events</h3>
+      <p>See the table under <a href="#headless">Headless mode &amp; Events</a> above.</p>
+    </section>
+
+    <aside class="later">
+      Being considered, not built yet: an option to have a custom Action generate a direct
+      AI-written answer to your question — using the on-device model with this whole page as
+      context — instead of just linking to a section.
+    </aside>
+
+    <script type="module" src="../src/index.ts"></script>
+    <script type="module">
+      const KNOWN_SECTIONS = new Set([
+        'requirements',
+        'installation',
+        'quick-start',
+        'fields',
+        'examples-notes',
+        'format',
+        'actions',
+        'history',
+        'headless',
+        'reference',
+      ])
+
+      const bar = document.querySelector('#docs-search-bar')
+      const input = document.querySelector('#docs-search-input')
+      const shaper = document.querySelector('#docs-search-shaper')
+      const note = document.querySelector('#docs-search-note')
+      const results = document.querySelector('#docs-search-results')
+
+      const markupPreview = document.querySelector('#docs-search-markup')
+      if (markupPreview) {
+        markupPreview.textContent = shaper.outerHTML
+      }
+
+      function sectionTitle(id) {
+        const heading = document.querySelector(`#${id} h2`)
+        return heading ? heading.textContent : id
+      }
+
+      function setNote(text) {
+        note.textContent = text
+      }
+
+      function clearResults() {
+        results.innerHTML = ''
+      }
+
+      function renderResults(suggestions) {
+        clearResults()
+        const seen = new Set()
+        for (const raw of suggestions) {
+          const match = /^section:(\S+)$/.exec(raw)
+          if (!match) continue
+          const id = match[1]
+          if (!KNOWN_SECTIONS.has(id) || seen.has(id)) continue
+          seen.add(id)
+          const li = document.createElement('li')
+          const a = document.createElement('a')
+          a.href = `#${id}`
+          a.textContent = sectionTitle(id)
+          a.addEventListener('click', () => {
+            shaper.accept(raw)
+            input.value = ''
+            clearResults()
+            setNote('')
+          })
+          li.appendChild(a)
+          results.appendChild(li)
+        }
+      }
+
+      input.addEventListener('input', () => {
+        if (input.value.trim() === '') {
+          clearResults()
+          setNote('')
+        }
+      })
+
+      shaper.addEventListener('query-shaper-generating', () => {
+        setNote('Searching…')
+        clearResults()
+      })
+      shaper.addEventListener('query-shaper-suggestions', (e) => {
+        setNote('')
+        renderResults(e.detail.suggestions)
+      })
+      shaper.addEventListener('query-shaper-error', () => {
+        setNote('')
+      })
+
+      async function gate() {
+        if (!('LanguageModel' in self)) return
+        const availability = await LanguageModel.availability()
+        if (availability === 'unavailable') return
+        bar.classList.add('visible')
+
+        shaper.addEventListener('query-shaper-status', (e) => {
+          const status = e.detail.status
+          if (status === 'downloadable') {
+            note.textContent = ''
+            note.id = 'docs-download-prompt'
+            const text = document.createElement('span')
+            text.textContent = 'AI-powered search needs to download the on-device model.'
+            const button = document.createElement('button')
+            button.type = 'button'
+            button.textContent = 'Enable'
+            button.addEventListener('click', () => void shaper.download())
+            note.appendChild(text)
+            note.appendChild(button)
+          } else if (status === 'downloading') {
+            note.removeAttribute('id')
+            setNote('Downloading the on-device model — this can take a while on first load.')
+          } else if (status === 'available') {
+            note.removeAttribute('id')
+            setNote('')
+          }
+        })
+      }
+      void gate()
+    </script>
+  </body>
+</html>
