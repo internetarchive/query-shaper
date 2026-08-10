@@ -2,14 +2,107 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Query Shaper — Dev</title>
-    <link
-      rel="icon"
-      href="logo.png"
-    />
+    <title>Query Shaper</title>
+    <link rel="icon" href="logo.png" />
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 46rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        line-height: 1.5;
+      }
+      h1 {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      .brand {
+        text-align: center;
+        margin-block: 1rem 2rem;
+      }
+      .brand img {
+        width: 96px;
+        height: 96px;
+      }
+      .brand h1 {
+        margin: 0.5rem 0 0;
+      }
+      .intro {
+        max-width: 38rem;
+        margin: 0 auto 2.5rem;
+        text-align: center;
+      }
+      .links {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+        gap: 1rem;
+        margin-block: 2.5rem;
+      }
+      .link-card {
+        display: block;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        text-decoration: none;
+        color: inherit;
+        transition:
+          border-color 0.15s,
+          box-shadow 0.15s;
+      }
+      .link-card:hover {
+        border-color: #888;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      }
+      .link-card h2 {
+        margin: 0 0 0.4rem;
+        font-size: 1.1rem;
+      }
+      .link-card p {
+        margin: 0;
+        color: #444;
+        font-size: 0.95rem;
+      }
+      footer {
+        text-align: center;
+        margin-block: 3rem 1rem;
+        color: #666;
+        font-size: 0.9rem;
+      }
+      footer a {
+        color: inherit;
+      }
+    </style>
   </head>
   <body>
-    <p><a href="./demo/index.html">Open the demo</a></p>
-    <p><a href="./docs/index.html">Open the docs</a></p>
+    <div class="brand">
+      <img src="logo.png" alt="Query Shaper logo" width="96" height="96" />
+      <h1>&lt;query-shaper&gt;</h1>
+    </div>
+
+    <p class="intro">
+      <code>&lt;query-shaper&gt;</code> is a web component you attach to a search input to turn
+      natural-language text into something your search backend can actually use — powered
+      entirely by Chrome's on-device AI, so nothing a visitor types ever leaves their browser. It
+      offers typo fixes, finished-out phrases, and broader related terms out of the box, and, once
+      you describe your backend's fields, fielded/boolean reformulations too.
+    </p>
+
+    <div class="links">
+      <a class="link-card" href="./docs/index.html">
+        <h2>📚 Docs</h2>
+        <p>Installation, every attribute and event, and a live example on the page itself.</p>
+      </a>
+      <a class="link-card" href="./demo/index.html">
+        <h2>🎮 Demo</h2>
+        <p>See it live against real search backends — Internet Archive, Open Library, the Wayback Machine, and more.</p>
+      </a>
+      <a class="link-card" href="https://git.archive.org/sawood/query-shaper">
+        <h2>📦 Repo</h2>
+        <p>Source, issue tracker, and full commit history.</p>
+      </a>
+    </div>
+
+    <footer>
+      <p>With ♡ from the <a href="https://web.archive.org/">Wayback Machine</a> team at the <a href="https://archive.org/">Internet Archive</a></p>
+    </footer>
   </body>
 </html>
