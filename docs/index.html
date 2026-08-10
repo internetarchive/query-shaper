@@ -710,9 +710,19 @@ query-shaper::part(option) {
       const note = document.querySelector('#docs-search-note')
       const results = document.querySelector('#docs-search-results')
 
+      function formatElementMarkup(el) {
+        const tag = el.tagName.toLowerCase()
+        const lines = [...el.attributes].map((attr) => {
+          if (attr.value === '') return `  ${attr.name}`
+          const quote = attr.value.includes('"') ? "'" : '"'
+          return `  ${attr.name}=${quote}${attr.value}${quote}`
+        })
+        return `<${tag}\n${lines.join('\n')}\n></${tag}>`
+      }
+
       const markupPreview = document.querySelector('#docs-search-markup')
       if (markupPreview) {
-        markupPreview.textContent = shaper.outerHTML
+        markupPreview.textContent = formatElementMarkup(shaper)
       }
 
       function sectionTitle(id) {
