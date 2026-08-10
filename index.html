@@ -31,35 +31,77 @@
         margin: 0 auto 2.5rem;
         text-align: center;
       }
-      .links {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-        gap: 1rem;
-        margin-block: 2.5rem;
+      .mock-search {
+        max-width: 42rem;
+        margin: 0 auto 2.5rem;
       }
-      .link-card {
-        display: block;
-        border: 1px solid #ccc;
-        border-radius: 8px;
-        padding: 1rem 1.25rem;
-        text-decoration: none;
-        color: inherit;
-        transition:
-          border-color 0.15s,
-          box-shadow 0.15s;
+      .mock-search-input {
+        display: flex;
+        align-items: center;
+        gap: 0.6em;
+        border: 1px solid #aaa;
+        border-radius: 8px 8px 0 0;
+        padding: 0.65em 0.9em;
+        font-size: 1rem;
+        background: #fff;
       }
-      .link-card:hover {
-        border-color: #888;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      .mock-search-input .search-icon {
+        flex-shrink: 0;
+        opacity: 0.6;
       }
-      .link-card h2 {
-        margin: 0 0 0.4rem;
-        font-size: 1.1rem;
+      .mock-search-input .typo {
+        text-decoration: underline wavy #d33;
       }
-      .link-card p {
+      .mock-search-input .cursor {
+        animation: mock-search-blink 1s step-start infinite;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .mock-search-input .cursor {
+          animation: none;
+        }
+      }
+      @keyframes mock-search-blink {
+        50% {
+          opacity: 0;
+        }
+      }
+      .mock-suggestions {
+        container-type: inline-size;
+        list-style: none;
         margin: 0;
-        color: #444;
-        font-size: 0.95rem;
+        padding: 0;
+        border: 1px solid #aaa;
+        border-top: none;
+        border-radius: 0 0 8px 8px;
+        overflow: hidden;
+      }
+      .mock-suggestions li {
+        border-top: 1px solid #eee;
+      }
+      .mock-suggestions li:first-child {
+        border-top: none;
+        padding: 0.65em 0.9em;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        color: #333;
+        font-size: 1em; /* fallback for browsers without container query units */
+        font-size: clamp(0.7em, 1.9cqi, 1em);
+      }
+      .mock-suggestions li:first-child .nowrap {
+        white-space: nowrap;
+      }
+      .mock-suggestions a {
+        display: block;
+        padding: 0.65em 0.9em;
+        color: inherit;
+        text-decoration: none;
+      }
+      .mock-suggestions a:focus-visible {
+        outline: none;
+        background: #e5e5e5;
+        box-shadow: inset 4px 0 0 0 #333;
+      }
+      .mock-suggestions li:not(:first-child):hover {
+        background: #e5e5e5;
       }
       footer {
         text-align: center;
@@ -87,23 +129,63 @@
       a visitor types ever leaves their browser.
     </p>
 
-    <div class="links">
-      <a class="link-card" href="./docs/">
-        <h2>📚 Docs</h2>
-        <p>Requirements, installation, every attribute and event, and a live example you can try on the page.</p>
-      </a>
-      <a class="link-card" href="./demo/">
-        <h2>🎮 Demo</h2>
-        <p>See it running against real search backends — Internet Archive, Open Library, and the Wayback Machine.</p>
-      </a>
-      <a class="link-card" href="https://git.archive.org/sawood/query-shaper">
-        <h2>📦 Repo</h2>
-        <p>Source code, the issue tracker, and the full commit history — hosted on GitLab under AGPLv3.</p>
-      </a>
+    <div class="mock-search">
+      <div class="mock-search-input" aria-hidden="true">
+        <span class="search-icon">🔍</span>
+        <span>how can i <span class="typo">lrn</span> more about query s<span class="cursor">|</span></span>
+      </div>
+      <ul class="mock-suggestions">
+        <li aria-hidden="true">
+          <code>
+            <span class="nowrap">(learn OR tutorial)</span>
+            <span class="nowrap">subject:"query shaper"</span>
+            <span class="nowrap">-jquery</span>
+            <span class="nowrap">year:[2026 TO *]</span>
+            <span class="nowrap">mood:curious</span>
+          </code>
+        </li>
+        <li>
+          <a href="./docs/">📚 <strong>Docs</strong> — integration, requirements, attributes, events, and styling</a>
+        </li>
+        <li>
+          <a href="./demo/">🎮 <strong>Demo</strong> — try it against real search backends</a>
+        </li>
+        <li>
+          <a href="https://git.archive.org/sawood/query-shaper">📦 <strong>Repo</strong> — source, issues, and commit history</a>
+        </li>
+      </ul>
     </div>
 
     <footer>
       <p>With ♡ from the <a href="https://web.archive.org/">Wayback Machine</a> team at the <a href="https://archive.org/">Internet Archive</a></p>
     </footer>
+
+    <script type="module">
+      const links = [...document.querySelectorAll('.mock-suggestions li:not(:first-child) a')]
+      links.forEach((link, index) => {
+        link.addEventListener('keydown', (e) => {
+          if (e.key === 'ArrowDown') {
+            e.preventDefault()
+            links[Math.min(index + 1, links.length - 1)].focus()
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault()
+            links[Math.max(index - 1, 0)].focus()
+          }
+        })
+      })
+      // Also works from the very start, before any of the three links has ever been
+      // focused — mirrors pressing Down/Up from the real input to enter the suggestion
+      // list for the first time.
+      document.addEventListener('keydown', (e) => {
+        if (document.activeElement !== document.body) return
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          links[0].focus()
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          links[links.length - 1].focus()
+        }
+      })
+    </script>
   </body>
 </html>
