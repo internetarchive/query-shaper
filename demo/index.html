@@ -404,9 +404,18 @@
           'Click into one of the search boxes below to load the on-device model — the first load can take several seconds.',
         )
         let settled = false
+        let hasStartedLoading = false
+        document.querySelectorAll('input[type="search"]').forEach((input) => {
+          input.addEventListener('focus', () => {
+            if (settled || hasStartedLoading) return
+            hasStartedLoading = true
+            setBanner('orange', 'Loading the on-device model — this may take several seconds.')
+          })
+        })
         document.querySelectorAll('query-shaper').forEach((shaper) => {
           shaper.addEventListener('query-shaper-status', (e) => {
             if (settled) return
+            hasStartedLoading = true
             const status = e.detail.status
             if (status === 'unavailable') {
               settled = true
