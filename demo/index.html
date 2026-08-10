@@ -36,6 +36,18 @@
         background: #f5f5f5;
         padding: 0.1em 0.3em;
       }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      details {
+        margin-block: 0 1em;
+      }
+      details summary {
+        cursor: pointer;
+        font-weight: 600;
+        color: #444;
+      }
       query-shaper {
         position: relative;
         display: block;
@@ -51,11 +63,15 @@
     <h1>Query Shaper — Demo</h1>
     <p>
       Each instance below enhances a plain search input with on-device AI
-      Suggestions (Correction, Completion, Expansion, Expression). Type a natural-language
-      query, wait a moment for Suggestions to appear, then accept one to see
-      that instance's configured Action run. Requires Chrome with the
-      on-device <code>LanguageModel</code> available — see
-      <a href="../README.md">README.md</a>.
+      Suggestions — plain rewordings (typo fixes, finished-out phrases,
+      broader related terms) mixed freely with fielded/boolean
+      reformulations wherever Fields are configured, never labeled or
+      capped by which kind of improvement a given one is. Type a
+      natural-language query, wait a moment for Suggestions to appear, then
+      accept one to see that instance's configured Action run. Requires
+      Chrome with the on-device <code>LanguageModel</code> available — see
+      <a href="../README.md">README.md</a>. Expand "View markup" under any
+      search box below to see exactly how it's configured.
     </p>
 
     <section>
@@ -68,6 +84,23 @@
         combined with negation, a typo, and a vague input deliberately given
         five varied Suggestions.
       </p>
+      <details>
+        <summary>View markup</summary>
+        <pre><code>&lt;query-shaper
+  for="ia-search"
+  fields='[{"name":"mediatype"},{"name":"year","type":"number"},{"name":"creator"},{"name":"subject"},{"name":"language"}]'
+  examples='[
+    {"input":"climate change documentaries from 2020","suggestions":["mediatype:movies AND subject:\"climate change\" AND year:2020"]},
+    {"input":"documentaries from before 2015","suggestions":["mediatype:movies AND year:[* TO 2015]"]},
+    {"input":"audio recordings or texts about jazz, not from 2020","suggestions":["(mediatype:audio OR mediatype:texts) AND subject:jazz AND -year:2020"]},
+    {"input":"documentries about space","suggestions":["mediatype:movies AND subject:space","documentaries about space"]},
+    {"input":"vintage sci-fi films","suggestions":["mediatype:movies AND subject:\"science fiction\"","vintage science fiction movies","classic sci-fi films","mediatype:movies AND subject:vintage","old science fiction movies"]}
+  ]'
+  format="lucene"
+  action="opensearch"
+  template="https://archive.org/search?query={searchTerms}"
+&gt;&lt;/query-shaper&gt;</code></pre>
+      </details>
       <form>
         <input id="ia-search" type="search" placeholder="e.g. climate change documentaries from 2020" />
         <query-shaper
@@ -99,6 +132,26 @@
         real bug seen live: the model once assigned "Harry Potter" to
         <code>author</code> instead of <code>title</code>.
       </p>
+      <details>
+        <summary>View markup</summary>
+        <pre><code>&lt;query-shaper
+  for="ol-search"
+  fields='[{"name":"author"},{"name":"title"},{"name":"language","description":"ISO 639 code"},{"name":"first_publish_year","type":"number"}]'
+  examples='[
+    {"input":"harry potter books published before 2000","suggestions":["title:\"harry potter\" AND first_publish_year:[1000 TO 2000]"]},
+    {"input":"books by cory doctorow in english","suggestions":["author:\"cory doctorow\" AND language:en"]},
+    {"input":"books published up to 2005","suggestions":["first_publish_year:[* TO 2005]"]},
+    {"input":"books by asimov but not in french","suggestions":["author:\"isaac asimov\" AND -language:fr"]},
+    {"input":"tolkien books in english or spanish","suggestions":["author:\"j.r.r. tolkien\" AND (language:en OR language:es)"]},
+    {"input":"harry poter books","suggestions":["title:\"harry potter\"","harry potter books"]},
+    {"input":"classic fantasy novels","suggestions":["title:fantasy","fantasy novels","classic fantasy books","title:\"lord of the rings\"","fantasy literature classics"]}
+  ]'
+  notes="A book or series title (e.g. &amp;quot;Harry Potter&amp;quot;, &amp;quot;Lord of the Rings&amp;quot;) always belongs in the title field, never author — only a real person's name belongs in author."
+  format="lucene"
+  action="opensearch"
+  template="https://openlibrary.org/search?q={searchTerms}&amp;mode=everything"
+&gt;&lt;/query-shaper&gt;</code></pre>
+      </details>
       <form>
         <input id="ol-search" type="search" placeholder="e.g. books by Cory Doctorow in English" />
         <query-shaper
@@ -133,6 +186,24 @@
         range in each direction, a typo, and a vague input given five varied
         Suggestions.
       </p>
+      <details>
+        <summary>View markup</summary>
+        <pre><code>&lt;query-shaper
+  for="wb-search"
+  fields='[{"name":"language"},{"name":"site"},{"name":"year","type":"number"},{"name":"pubdate","type":"date"}]'
+  examples='[
+    {"input":"government sites about climate policy after 2015","suggestions":["site:gov AND year:[2015 TO *] climate policy"]},
+    {"input":"English language government sites","suggestions":["language:en AND site:gov"]},
+    {"input":"sites excluding .com domains from 2020","suggestions":["-site:com AND year:2020"]},
+    {"input":"old government pages up to 2010","suggestions":["site:gov AND year:[* TO 2010]"]},
+    {"input":"goverment sites","suggestions":["site:gov","government sites"]},
+    {"input":"climate change resources","suggestions":["climate change","site:gov climate change","climate policy resources","environmental policy sites","site:org climate change"]}
+  ]'
+  format="lucene"
+  action="opensearch"
+  template="https://web.archive.org/collection-search/gov/{searchTerms}"
+&gt;&lt;/query-shaper&gt;</code></pre>
+      </details>
       <form>
         <input id="wb-search" type="search" placeholder="e.g. English-language sites about climate policy" />
         <query-shaper
@@ -156,9 +227,16 @@
     <section>
       <h2>4. No Fields declared</h2>
       <p>
-        Without Fields, only Correction and Expansion Suggestions are
-        offered — no Expression.
+        No <code>fields</code> attribute at all — the model is never told
+        about any backend fields, so Suggestions stay plain rewordings
+        (typo fixes, finished-out phrases, broader related terms) and never
+        attempt a fielded reformulation, since there's nothing declared to
+        reformulate against.
       </p>
+      <details>
+        <summary>View markup</summary>
+        <pre><code>&lt;query-shaper for="generic-none"&gt;&lt;/query-shaper&gt;</code></pre>
+      </details>
       <input id="generic-none" type="search" placeholder="e.g. a mispelled or vague query" />
       <query-shaper for="generic-none"></query-shaper>
     </section>
@@ -172,6 +250,20 @@
         declaration measurably needed more encouragement to attempt a
         fielded Suggestion at all, covering a range, negation, and grouping.
       </p>
+      <details>
+        <summary>View markup</summary>
+        <pre><code>&lt;query-shaper
+  for="generic-freeform"
+  fields="title, author, language:iso-639-1, date (allowed patterns YYYY[-MM[-DD]]), categories (comma-separated list)"
+  examples='[
+    {"input":"French novels from the 1920s","suggestions":["language:fr AND date:[1920 TO 1929]","french novels 1920s"]},
+    {"input":"books by Verne in French","suggestions":["author:\"jules verne\" AND language:fr"]},
+    {"input":"novels not in english, from before 1950","suggestions":["-language:en AND date:[* TO 1950]"]},
+    {"input":"adventure or mystery novels in french","suggestions":["(categories:adventure OR categories:mystery) AND language:fr"]},
+    {"input":"vernes novels","suggestions":["author:\"jules verne\"","verne&amp;apos;s novels"]}
+  ]'
+&gt;&lt;/query-shaper&gt;</code></pre>
+      </details>
       <input id="generic-freeform" type="search" placeholder="e.g. French books by Verne from the 1870s" />
       <query-shaper
         for="generic-freeform"
@@ -194,6 +286,21 @@
         and a vague input deliberately given five varied Suggestions mixing
         fielded and plain-rewording styles.
       </p>
+      <details>
+        <summary>View markup</summary>
+        <pre><code>&lt;query-shaper
+  for="generic-json"
+  fields='[{"name":"category"},{"name":"price","type":"number"},{"name":"in_stock","type":"boolean"}]'
+  examples='[
+    {"input":"electronics under $50","suggestions":["category:electronics AND price:[0 TO 50]","cheap electronics"]},
+    {"input":"laptops in stock","suggestions":["category:laptop AND in_stock:true"]},
+    {"input":"cheap electronics, not laptops","suggestions":["category:electronics AND -category:laptop AND price:[0 TO 50]"]},
+    {"input":"electronics or gadgets under $50","suggestions":["(category:electronics OR category:gadgets) AND price:[0 TO 50]"]},
+    {"input":"electroncis under $50","suggestions":["category:electronics AND price:[0 TO 50]","electronics under $50"]},
+    {"input":"cheap stuff","suggestions":["price:[0 TO 20]","category:electronics AND price:[0 TO 20]","affordable items","budget electronics","discounted electronics"]}
+  ]'
+&gt;&lt;/query-shaper&gt;</code></pre>
+      </details>
       <input id="generic-json" type="search" placeholder="e.g. electronics under $50 in stock" />
       <query-shaper
         for="generic-json"
@@ -212,10 +319,28 @@
     <section>
       <h2>7. Custom <code>.format</code> render function</h2>
       <p>
-        The escape hatch for backends neither built-in preset covers — set
-        imperatively since a render function can't be expressed as an
-        attribute.
+        The escape hatch for backends neither built-in preset covers — a
+        render function can't be expressed as an attribute, so it's set
+        imperatively on the <code>.format</code> property once the element
+        is defined. This one renders <code>field=value</code> pairs joined
+        by <code>;</code> instead of <code>lucene</code> or
+        <code>url-params</code> syntax.
       </p>
+      <details>
+        <summary>View markup</summary>
+        <pre><code>&lt;query-shaper
+  id="generic-custom-shaper"
+  for="generic-custom"
+  fields='[{"name":"category"},{"name":"price","type":"number"}]'
+&gt;&lt;/query-shaper&gt;
+
+&lt;script type="module"&gt;
+  customElements.whenDefined('query-shaper').then(() =&gt; {
+    document.querySelector('#generic-custom-shaper').format = (fields) =&gt;
+      fields.map((f) =&gt; `${f.field ?? 'q'}=${f.value}`).join(';')
+  })
+&lt;/script&gt;</code></pre>
+      </details>
       <input id="generic-custom" type="search" placeholder="e.g. electronics under $50 in stock" />
       <query-shaper id="generic-custom-shaper" for="generic-custom" fields='[{"name":"category"},{"name":"price","type":"number"}]'></query-shaper>
     </section>
