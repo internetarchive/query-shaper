@@ -54,6 +54,7 @@ npm test           # run the unit test suite
 npm run typecheck
 npm run lint
 npm run build      # emits the npm package + CDN bundle to ./dist
+npm run build:site # assembles a deployable copy of the landing/demo/docs pages in ./site
 ```
 
 Session lifecycle and generation are logged to the console (timestamped,
