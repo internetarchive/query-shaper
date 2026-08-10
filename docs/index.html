@@ -18,6 +18,28 @@
       h1 {
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       }
+      .page-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+      .page-header img {
+        width: 40px;
+        height: 40px;
+        flex-shrink: 0;
+      }
+      .page-header h1 {
+        margin: 0;
+      }
+      footer {
+        text-align: center;
+        margin-block: 3rem 1rem;
+        color: #666;
+        font-size: 0.9rem;
+      }
+      footer a {
+        color: inherit;
+      }
       section {
         border: 1px solid #ccc;
         border-radius: 8px;
@@ -137,7 +159,10 @@
     </style>
   </head>
   <body>
-    <h1>&lt;Query-Shaper for="Docs"&gt;</h1>
+    <div class="page-header">
+      <a href="../"><img src="../logo.png" alt="Query Shaper logo" width="40" height="40" /></a>
+      <h1>&lt;Query-Shaper for="Docs"&gt;</h1>
+    </div>
     <p>
       How to attach <code>&lt;query-shaper&gt;</code> to a search input on your own page. For the
       design rationale behind these decisions, see this repo's <code>SPEC.md</code>,
@@ -645,6 +670,10 @@ query-shaper::part(option) {
       AI-written answer to your question — using the on-device model with this whole page as
       context — instead of just linking to a section.
     </aside>
+
+    <footer>
+      <p>With ♡ from the <a href="https://web.archive.org/">Wayback Machine</a> team at the <a href="https://archive.org/">Internet Archive</a></p>
+    </footer>
 
     <script type="module" src="../src/index.ts"></script>
     <script type="module">

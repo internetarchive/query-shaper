@@ -27,6 +27,28 @@
       h1 {
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       }
+      .page-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+      .page-header img {
+        width: 40px;
+        height: 40px;
+        flex-shrink: 0;
+      }
+      .page-header h1 {
+        margin: 0;
+      }
+      footer {
+        text-align: center;
+        margin-block: 3rem 1rem;
+        color: #666;
+        font-size: 0.9rem;
+      }
+      footer a {
+        color: inherit;
+      }
       input[type='search'] {
         width: 100%;
         box-sizing: border-box;
@@ -92,7 +114,10 @@
     </style>
   </head>
   <body>
-    <h1>&lt;Query-Shaper for="Demo"&gt;</h1>
+    <div class="page-header">
+      <a href="../"><img src="../logo.png" alt="Query Shaper logo" width="40" height="40" /></a>
+      <h1>&lt;Query-Shaper for="Demo"&gt;</h1>
+    </div>
     <div id="status-banner" class="status-banner status-banner--orange" role="status">
       Checking on-device AI availability…
     </div>
@@ -379,6 +404,10 @@
       <input id="generic-custom" type="search" placeholder="e.g. electronics under $50 in stock" />
       <query-shaper id="generic-custom-shaper" for="generic-custom" fields='[{"name":"category"},{"name":"price","type":"number"}]'></query-shaper>
     </section>
+
+    <footer>
+      <p>With ♡ from the <a href="https://web.archive.org/">Wayback Machine</a> team at the <a href="https://archive.org/">Internet Archive</a></p>
+    </footer>
 
     <script type="module" src="../src/index.ts"></script>
     <script type="module">
