@@ -294,13 +294,20 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
       <p><strong>Inline JSON</strong> — an array of field descriptors:</p>
       <pre><code>&lt;query-shaper
   for="search"
-  fields='[{"name":"category"},{"name":"price","type":"number"},{"name":"in_stock","type":"boolean"}]'
+  fields='[{"name":"category"},{"name":"price","type":"number"},{"name":"in_stock","type":"boolean"},{"name":"language","description":"ISO 639-1 code, e.g. en, fr, ja"}]'
 &gt;&lt;/query-shaper&gt;</code></pre>
       <p><strong>Free-form text</strong> — a human-written description:</p>
       <pre><code>&lt;query-shaper
   for="search"
   fields="title, author, language:iso-639-1, date (allowed patterns YYYY[-MM[-DD]]), categories (comma-separated list)"
 &gt;&lt;/query-shaper&gt;</code></pre>
+      <p>Each entry in the JSON array shape is:</p>
+      <pre><code>{
+  name: string           // required
+  type?: 'text' | 'number' | 'date' | 'boolean'
+  aliases?: string[]
+  description?: string
+}</code></pre>
       <p>
         Without <code>fields</code>, the model is never told about any backend fields — a
         Suggestion that references one anyway is dropped rather than shown broken.
@@ -325,9 +332,15 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
   fields='[{"name":"author"},{"name":"title"},{"name":"first_publish_year","type":"number"}]'
   examples='[
     {"input":"harry potter books published before 2000","suggestions":["title:\"harry potter\" AND first_publish_year:[1000 TO 2000]"]},
-    {"input":"books by asimov but not in french","suggestions":["author:\"isaac asimov\" AND -language:fr"]}
+    {"input":"books by asimov but not in french","suggestions":["author:\"isaac asimov\" AND -language:fr"]},
+    {"input":"cheap-ish books about space","suggestions":["subject:space AND price:[0 TO 20]","affordable space books"]}
   ]'
 &gt;&lt;/query-shaper&gt;</code></pre>
+      <p>Each entry in that array is:</p>
+      <pre><code>{
+  input: string
+  suggestions: string[]   // plural: one input can have more than one good answer
+}</code></pre>
       <p>
         <strong><code>notes</code></strong> — free-form prose for domain-specific guidance that
         doesn't fit the input/Suggestions pair shape — a business rule, a unit convention, a
@@ -335,7 +348,7 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
       </p>
       <pre><code>&lt;query-shaper
   for="search"
-  notes="A book or series title (e.g. &amp;quot;Harry Potter&amp;quot;) always belongs in the title field, never author — only a real person's name belongs in author."
+  notes='A book or series title (e.g. "Harry Potter") always belongs in the title field, never author — author is only for the name of an actual person.'
 &gt;&lt;/query-shaper&gt;</code></pre>
       <p>
         <code>examples</code> teaches by demonstration, <code>notes</code> teaches by instruction —
