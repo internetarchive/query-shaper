@@ -5,11 +5,13 @@ natural-language query into something a search backend can actually use.
 
 Instead of sending the raw text straight to your search index, Query Shaper
 uses the browser's built-in, on-device AI (the kind now shipping in browsers
-like Chrome) to understand the intent behind what someone typed and suggest:
+like Chrome) to rewrite what someone typed into better alternatives — mixed
+freely in one list, never labeled or capped by which of these a given one
+is:
 
 - **Structured queries** — boolean/fielded query variants (e.g.
-  `title:"climate change" AND year:2020..2023`) derived from the natural
-  language input
+  `title:"climate change" AND year:[2020 TO 2023]`) derived from the
+  natural language input, once you describe your search fields
 - **Typo corrections** — likely misspellings caught and corrected before the
   search runs
 - **Query expansions** — related terms, synonyms, and alternate phrasings
@@ -52,12 +54,14 @@ npm run lint
 npm run build      # emits the npm package + CDN bundle to ./dist
 ```
 
-Session lifecycle and generation timing are logged to the console
-(prefixed `[query-shaper]`) whenever the component is loaded via `npm run
-dev` — status transitions, session/parent establishment timing, per-query
-`prompt()` timing, retries, aborts, and final Suggestion counts. This is
-dev-only: it's gated on `import.meta.env.DEV`, which Vite replaces and
-tree-shakes away entirely in `npm run build` — none of it ships in `dist/`.
+Session lifecycle and generation are logged to the console (timestamped,
+prefixed `[query-shaper <time>]`) whenever the component is loaded via `npm
+run dev` — status transitions, session/parent establishment timing, the
+Fields/Examples/Notes content primed into a session, the exact prompt text
+and raw Suggestions sent/received per query, how each Suggestion parsed,
+retries, aborts, and final Suggestion counts. This is dev-only: it's gated
+on `import.meta.env.DEV`, which Vite replaces and tree-shakes away entirely
+in `npm run build` — none of it ships in `dist/`.
 
 ## License
 
