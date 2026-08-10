@@ -57,6 +57,10 @@ npm run build      # emits the npm package + CDN bundle to ./dist
 npm run build:site # assembles a deployable copy of the landing/demo/docs pages in ./site
 ```
 
+Or via Docker: `docker build -t query-shaper-site . && docker run -p 8080:80
+query-shaper-site` runs `build:site` and serves the result with nginx — nothing
+else needed, since query-shaper is entirely client-side.
+
 Session lifecycle and generation are logged to the console (timestamped,
 prefixed `[query-shaper <time>]`) whenever the component is loaded via `npm
 run dev` — status transitions, session/parent establishment timing, the
