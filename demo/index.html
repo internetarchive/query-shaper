@@ -408,6 +408,16 @@
             if (status === 'unavailable') {
               settled = true
               setBanner('red', RED)
+            } else if (status === 'downloadable') {
+              setBanner(
+                'orange',
+                'The on-device model needs to download before Suggestions can work — click the prompt under the search box you focused to start it.',
+              )
+            } else if (status === 'downloading') {
+              setBanner(
+                'orange',
+                'Downloading the on-device model — this can take a while depending on your connection. Suggestions will work once it\'s ready.',
+              )
             } else if (status === 'available') {
               settled = true
               setBanner(
