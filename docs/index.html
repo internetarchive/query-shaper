@@ -153,7 +153,7 @@
         headless
         action="none"
         format="lucene"
-        fields='[{"name":"section","description":"one of: requirements, installation, quick-start, fields, examples-notes, format, actions, history, headless, reference"}]'
+        fields='[{"name":"section","description":"one of: requirements, installation, quick-start, fields, examples-notes, format, actions, history, styling, headless, reference"}]'
         examples='[
           {"input":"what chrome version and hardware do I need","suggestions":["section:requirements"]},
           {"input":"how do I install query-shaper on my page","suggestions":["section:installation"]},
@@ -163,6 +163,7 @@
           {"input":"how do I change the output format for my backend","suggestions":["section:format"]},
           {"input":"how do I make accepting a suggestion submit the form","suggestions":["section:actions"]},
           {"input":"how do I keep track of what the user searched before","suggestions":["section:history"]},
+          {"input":"how do I theme or customize the look of the popup","suggestions":["section:styling"]},
           {"input":"how do I build my own custom suggestion popup","suggestions":["section:headless"]},
           {"input":"what attributes and events are available","suggestions":["section:reference"]}
         ]'
@@ -182,8 +183,9 @@
         <li><a href="#format">Format</a></li>
         <li><a href="#actions">Actions &amp; Destination</a></li>
         <li><a href="#history">History</a></li>
-        <li><a href="#headless">Headless mode &amp; Events</a></li>
-        <li><a href="#reference">Full reference</a></li>
+        <li><a href="#styling">Styling</a></li>
+        <li><a href="#headless">Headless Mode &amp; Events</a></li>
+        <li><a href="#reference">Full Reference</a></li>
       </ul>
     </nav>
 
@@ -408,8 +410,72 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
       </ul>
     </section>
 
+    <section id="styling">
+      <h2>Styling</h2>
+      <p>
+        The built-in popup renders in a Shadow DOM (<code>mode: "open"</code>), themed via CSS
+        custom properties — set them on <code>query-shaper</code> itself, or inherit them from an
+        ancestor:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Custom property</th>
+            <th>Default</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>--query-shaper-background</code></td>
+            <td><code>#fff</code></td>
+          </tr>
+          <tr>
+            <td><code>--query-shaper-color</code></td>
+            <td><code>#111</code></td>
+          </tr>
+          <tr>
+            <td><code>--query-shaper-border-color</code></td>
+            <td><code>#ccc</code></td>
+          </tr>
+          <tr>
+            <td><code>--query-shaper-font-family</code></td>
+            <td><code>inherit</code></td>
+          </tr>
+          <tr>
+            <td><code>--query-shaper-option-padding</code></td>
+            <td><code>0.5em 0.75em</code></td>
+          </tr>
+          <tr>
+            <td><code>--query-shaper-active-background</code></td>
+            <td><code>#e0e0ff</code> — the keyboard-active/hovered option</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        For finer control, target individual elements from outside with
+        <code>::part()</code>: <code>popup</code> (the outer container),
+        <code>listbox</code> (the suggestion list), <code>option</code> (each suggestion),
+        <code>output</code> (the element <code>action="output"</code> writes to when no
+        <code>destination</code> is given), and — suppressed entirely when <code>headless</code> —
+        <code>download-prompt</code>/<code>download-enable</code>/<code>download-dismiss</code> and
+        <code>downloading-notice</code> for the download messages.
+      </p>
+      <pre><code>query-shaper {
+  --query-shaper-background: #1e1e2e;
+  --query-shaper-color: #eee;
+  --query-shaper-active-background: #3b3b58;
+}
+query-shaper::part(option) {
+  border-bottom: 1px solid #333;
+}</code></pre>
+      <p>
+        For full visual control, skip all of this and go <a href="#headless"><code>headless</code></a>
+        instead — build the entire popup yourself from the events below.
+      </p>
+    </section>
+
     <section id="headless">
-      <h2>Headless mode &amp; Events</h2>
+      <h2>Headless Mode &amp; Events</h2>
       <p>
         Set the <code>headless</code> boolean attribute to render no popup UI at all — including
         the built-in download-prompt messages — and drive your own UI entirely from events fired
@@ -483,7 +549,7 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
     </section>
 
     <section id="reference">
-      <h2>Full reference</h2>
+      <h2>Full Reference</h2>
       <h3>Attributes / properties</h3>
       <table>
         <thead>
@@ -567,7 +633,7 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
         </tbody>
       </table>
       <h3>Events</h3>
-      <p>See the table under <a href="#headless">Headless mode &amp; Events</a> above.</p>
+      <p>See the table under <a href="#headless">Headless Mode &amp; Events</a> above.</p>
     </section>
 
     <aside class="later">
@@ -587,6 +653,7 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
         'format',
         'actions',
         'history',
+        'styling',
         'headless',
         'reference',
       ])
@@ -664,7 +731,17 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
         if (availability === 'unavailable') return
         bar.classList.add('visible')
 
+        // Focusing the input is what actually triggers the library's own
+        // availability()/session-establishment work, but query-shaper-status only fires
+        // once that resolves — which can be a few seconds away even when the model is
+        // already downloaded. Give immediate feedback in the meantime.
+        let gotStatus = false
+        input.addEventListener('focus', () => {
+          if (!gotStatus) setNote('Loading on-device model…')
+        })
+
         shaper.addEventListener('query-shaper-status', (e) => {
+          gotStatus = true
           const status = e.detail.status
           if (status === 'downloadable') {
             note.textContent = ''
