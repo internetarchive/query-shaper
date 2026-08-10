@@ -62,10 +62,14 @@ describe('QueryShaper download prompt', () => {
     expect(shaper.shadowRoot?.querySelector('[part="download-prompt"]')).toBeNull()
   })
 
-  it('triggers the model download when Enable is clicked', async () => {
+  it('triggers the model download when Enable is clicked, and emits available once ready', async () => {
     const lm = mockLanguageModel({ availability: 'downloadable' })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
     const { shaper, input } = mount()
+    const statusEvents: string[] = []
+    shaper.addEventListener('query-shaper-status', (e) => {
+      statusEvents.push((e as CustomEvent).detail.status)
+    })
 
     input.dispatchEvent(new Event('focus'))
     await vi.waitFor(() => expect(shaper.shadowRoot?.querySelector('[part="download-prompt"]')).not.toBeNull())
@@ -75,6 +79,28 @@ describe('QueryShaper download prompt', () => {
 
     await vi.waitFor(() => expect(lm.create).toHaveBeenCalledTimes(1))
     await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(statusEvents).toEqual(['downloadable', 'available']))
+  })
+
+  it('exposes a public download() method a headless consumer can call directly, with no built-in button', async () => {
+    const lm = mockLanguageModel({ availability: 'downloadable' })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+    shaper.setAttribute('headless', '')
+    const statusEvents: string[] = []
+    shaper.addEventListener('query-shaper-status', (e) => {
+      statusEvents.push((e as CustomEvent).detail.status)
+    })
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(statusEvents).toEqual(['downloadable']))
+    expect(shaper.shadowRoot?.querySelector('[part="download-prompt"]')).toBeNull()
+
+    await shaper.download()
+
+    expect(lm.create).toHaveBeenCalledTimes(1)
+    expect(lm.baseSession.clone).toHaveBeenCalledTimes(1)
+    expect(statusEvents).toEqual(['downloadable', 'available'])
   })
 
   it('shows an informational message with no buttons when status is downloading', async () => {

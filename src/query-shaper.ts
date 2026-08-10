@@ -485,6 +485,7 @@ export class QueryShaper extends HTMLElement {
       return
     }
     this.#lastRequestedText = trimmed
+    this.dispatchEvent(new CustomEvent('query-shaper-generating', { detail: { searchText: trimmed } }))
     await this.#ensureFieldsPrimed()
     if (!this.#session) return
     if (this.#abortController) {
@@ -842,7 +843,7 @@ export class QueryShaper extends HTMLElement {
     const enableButton = document.createElement('button')
     enableButton.setAttribute('part', 'download-enable')
     enableButton.textContent = 'Enable'
-    enableButton.addEventListener('click', () => void this.#enableDownload())
+    enableButton.addEventListener('click', () => void this.download())
 
     const dismissButton = document.createElement('button')
     dismissButton.setAttribute('part', 'download-dismiss')
@@ -857,11 +858,15 @@ export class QueryShaper extends HTMLElement {
     root.appendChild(prompt)
   }
 
-  async #enableDownload(): Promise<void> {
+  // Public so a headless consumer — which never gets the built-in Enable button, since
+  // that's part of the popup UI headless suppresses — has a way to trigger the download
+  // itself from its own custom "downloadable" UI.
+  async download(): Promise<void> {
     const LM = (globalThis as { LanguageModel?: LanguageModelAPI }).LanguageModel
     if (!LM) return
     this.#session = await this.#createSession(LM)
     this.#downloadPromptContainer.innerHTML = ''
+    this.#emitStatus('available')
   }
 }
 

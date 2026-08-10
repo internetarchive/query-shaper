@@ -167,18 +167,40 @@ contribution with a stale in-memory copy.
 
 **`headless`** (boolean attribute): renders no popup UI; only emits the
 events below. Lets a host with its own existing suggestion widget consume
-Suggestion data directly instead of fighting two competing popups.
+Suggestion data directly instead of fighting two competing popups. This
+includes the `downloadable`/`downloading` inline messages (the "Enable"
+button and the buffering notice) — a headless host builds its own UI for
+those too, driven by `query-shaper-status`.
 
 Regardless of `headless`, query-shaper sets `autocomplete="off"` on the
 Target by default (its own popup replaces what native browser autocomplete
 would otherwise show, and that native dropdown can't be reliably suppressed
 any other way).
 
+**`.download()`** (imperative method, no attribute equivalent): triggers
+the model download when status is `downloadable`. The built-in (non-headless)
+popup calls this itself from its own "Enable" button; it's public
+specifically so a `headless` host — which never gets that button — has a
+way to trigger the same download from its own custom UI. Establishes the
+session exactly as focus normally would once the download completes, and
+emits a `query-shaper-status` event carrying `available` once it's actually
+ready (see "Generation flow" below for why that timing matters). A no-op if
+`LanguageModel` isn't present at all.
+
 ### Events
 
 All fired on the `<query-shaper>` element itself, as `CustomEvent`s carrying
 data in `detail`:
 
+- **`query-shaper-generating`** — a debounced generation call actually
+  started (not fired for a whitespace-only change, or when the Search Text
+  is cleared — see "Generation flow" below). `detail: { searchText }`. A
+  headless consumer can use this, paired with `query-shaper-suggestions`/
+  `query-shaper-error` below, to drive its own "searching" indicator: show
+  it on any `query-shaper-generating`, hide it on any
+  `query-shaper-suggestions`/`query-shaper-error` — no need to correlate a
+  specific generation, since a superseded call's outcome is always silently
+  discarded internally and never reaches either of those two events itself.
 - **`query-shaper-suggestions`** — a new suggestion set is ready. `detail:
 { suggestions: Suggestion[] }`
 - **`query-shaper-accept`** — a Suggestion was Accepted. `detail: {
@@ -304,7 +326,11 @@ so it's dropped there specifically.
    falling back to `en` when unset or not currently one of the model's
    supported languages (`de`, `en`, `es`, `fr`, `ja`).
 2. **Debounced input** (~400ms pause — a starting point, expected to need
-   empirical tuning against real model latency): if Fields changed
+   empirical tuning against real model latency): fires `query-shaper-generating`
+   the moment a call is actually about to happen — never for a pause that
+   only changed whitespace, and never when the Search Text is cleared
+   entirely (that path goes straight to an empty `query-shaper-suggestions`
+   instead; see below). If Fields changed
    imperatively since the parent was primed, rebuild it first (destroy the
    stale one, clone fresh from the grandparent, re-`append()`). Then clone a
    disposable "child" from the parent and build **one** prompt call — just

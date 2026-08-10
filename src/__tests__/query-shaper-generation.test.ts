@@ -142,6 +142,56 @@ describe('QueryShaper generation', () => {
     expect(suggestionEvents[0]).toEqual(['climate change', 'global warming'])
   })
 
+  it('emits a query-shaper-generating event when a debounced generation actually starts', async () => {
+    const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const generatingEvents: unknown[] = []
+    shaper.addEventListener('query-shaper-generating', (e) => {
+      generatingEvents.push((e as CustomEvent).detail.searchText)
+    })
+
+    input.value = 'climate change'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
+
+    expect(generatingEvents).toEqual(['climate change'])
+  })
+
+  it('does not emit query-shaper-generating for a whitespace-only change or a clear', async () => {
+    const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
+    ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm
+    const { shaper, input } = mount()
+
+    input.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(lm.baseSession.clone).toHaveBeenCalledTimes(1))
+
+    const generatingEvents: unknown[] = []
+    shaper.addEventListener('query-shaper-generating', (e) => {
+      generatingEvents.push((e as CustomEvent).detail.searchText)
+    })
+
+    input.value = 'climate change'
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+    await vi.waitFor(() => expect(lm.clonedSession.prompt).toHaveBeenCalledTimes(1))
+
+    input.value = 'climate change '
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+
+    input.value = ''
+    input.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(400)
+
+    expect(generatingEvents).toEqual(['climate change'])
+  })
+
   it('excludes a suggestion identical to the Search Text, keeping the rest', async () => {
     const lm = mockLanguageModel({
       promptResponse: { suggestions: ['climate change', 'climate change', 'global warming'] },
