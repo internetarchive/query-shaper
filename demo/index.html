@@ -70,8 +70,9 @@
       natural-language query, wait a moment for Suggestions to appear, then
       accept one to see that instance's configured Action run. Requires
       Chrome with the on-device <code>LanguageModel</code> available — see
-      <a href="../README.md">README.md</a>. Expand "View markup" under any
-      search box below to see exactly how it's configured.
+      <a href="../README.md">README.md</a>. Expand the
+      <code>&lt;query-shaper&gt;</code> line under any search box below to
+      see exactly how it's configured.
     </p>
 
     <section>
@@ -85,7 +86,7 @@
         five varied Suggestions.
       </p>
       <details>
-        <summary>View markup</summary>
+        <summary><code>&lt;query-shaper for="ia-search" ... /&gt;</code></summary>
         <pre><code>&lt;query-shaper
   for="ia-search"
   fields='[{"name":"mediatype"},{"name":"year","type":"number"},{"name":"creator"},{"name":"subject"},{"name":"language"}]'
@@ -133,7 +134,7 @@
         <code>author</code> instead of <code>title</code>.
       </p>
       <details>
-        <summary>View markup</summary>
+        <summary><code>&lt;query-shaper for="ol-search" ... /&gt;</code></summary>
         <pre><code>&lt;query-shaper
   for="ol-search"
   fields='[{"name":"author"},{"name":"title"},{"name":"language","description":"ISO 639 code"},{"name":"first_publish_year","type":"number"}]'
@@ -187,7 +188,7 @@
         Suggestions.
       </p>
       <details>
-        <summary>View markup</summary>
+        <summary><code>&lt;query-shaper for="wb-search" ... /&gt;</code></summary>
         <pre><code>&lt;query-shaper
   for="wb-search"
   fields='[{"name":"language"},{"name":"site"},{"name":"year","type":"number"},{"name":"pubdate","type":"date"}]'
@@ -234,7 +235,7 @@
         reformulate against.
       </p>
       <details>
-        <summary>View markup</summary>
+        <summary><code>&lt;query-shaper for="generic-none" /&gt;</code></summary>
         <pre><code>&lt;query-shaper for="generic-none"&gt;&lt;/query-shaper&gt;</code></pre>
       </details>
       <input id="generic-none" type="search" placeholder="e.g. a mispelled or vague query" />
@@ -251,7 +252,7 @@
         fielded Suggestion at all, covering a range, negation, and grouping.
       </p>
       <details>
-        <summary>View markup</summary>
+        <summary><code>&lt;query-shaper for="generic-freeform" ... /&gt;</code></summary>
         <pre><code>&lt;query-shaper
   for="generic-freeform"
   fields="title, author, language:iso-639-1, date (allowed patterns YYYY[-MM[-DD]]), categories (comma-separated list)"
@@ -287,7 +288,7 @@
         fielded and plain-rewording styles.
       </p>
       <details>
-        <summary>View markup</summary>
+        <summary><code>&lt;query-shaper for="generic-json" ... /&gt;</code></summary>
         <pre><code>&lt;query-shaper
   for="generic-json"
   fields='[{"name":"category"},{"name":"price","type":"number"},{"name":"in_stock","type":"boolean"}]'
@@ -327,7 +328,7 @@
         <code>url-params</code> syntax.
       </p>
       <details>
-        <summary>View markup</summary>
+        <summary><code>&lt;query-shaper for="generic-custom" ... /&gt;</code></summary>
         <pre><code>&lt;query-shaper
   id="generic-custom-shaper"
   for="generic-custom"
