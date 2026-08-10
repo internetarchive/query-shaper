@@ -121,12 +121,14 @@
     </div>
 
     <p class="intro">
-      <code>&lt;query-shaper&gt;</code> is a web component you attach to a search input to turn
-      what someone types into precise, fielded/boolean search syntax your backend can actually
-      run — <code>field:value</code>, <code>AND</code>/<code>OR</code>, ranges — once you
+      Attach <code>&lt;query-shaper&gt;</code> to a search input to turn what someone types into
+      precise, fielded/boolean search syntax your backend can actually run (e.g.
+      <code>field:value</code>, <code>AND</code>/<code>OR</code>, exclusions, ranges) once you
       describe your backend's fields. It also fixes typos, finishes cut-off phrases, and broadens
-      with related terms out of the box, all powered entirely by Chrome's on-device AI, so nothing
-      a visitor types ever leaves their browser.
+      with related terms out of the box. All of this is powered entirely by Chrome's on-device AI,
+      so understanding what someone types never involves sending it to a third-party AI service.
+      The search they end up accepting still goes to your backend as normal, exactly like any
+      other search box.
     </p>
 
     <div class="mock-search">
