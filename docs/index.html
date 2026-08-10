@@ -233,10 +233,14 @@
         <a href="https://developer.chrome.com/docs/ai/prompt-api#hardware-requirements"
           >adequate hardware resources</a
         >
-        for the on-device model. Everywhere else — an unsupported browser, or supported Chrome on
-        underpowered hardware — it's a no-op: the Target keeps working exactly like a plain
-        <code>&lt;input&gt;</code>/<code>&lt;textarea&gt;</code>, no Suggestions, no errors. Treat
-        it as a progressive enhancement, never a requirement for your search box to function.
+        for the on-device model, served from a secure context — <code>https:</code>, or
+        <code>localhost</code>/<code>127.0.0.1</code> for local development. Plain
+        <code>http:</code> on a real domain doesn't qualify, even on an otherwise-supported
+        browser. Everywhere else — an unsupported browser, an insecure context, or supported
+        Chrome on underpowered hardware — it's a no-op: the Target keeps working exactly like a
+        plain <code>&lt;input&gt;</code>/<code>&lt;textarea&gt;</code>, no Suggestions, no errors.
+        Treat it as a progressive enhancement, never a requirement for your search box to
+        function.
       </p>
     </section>
 

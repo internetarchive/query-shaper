@@ -290,7 +290,11 @@ so it's dropped there specifically.
 
 ## Generation flow
 
-1. **First focus** on the Target: call `LanguageModel.availability()`.
+1. **First focus** on the Target: call `LanguageModel.availability()`. Like
+   most powerful Web platform APIs, `LanguageModel` only exists in a secure
+   context (`https:`, or `localhost`/`127.0.0.1` for local development) —
+   `'LanguageModel' in self` is `false` on plain `http:`, indistinguishable
+   from an unsupported browser.
    - `unavailable` → do nothing; fully inert, standard input behavior.
    - `available` → establish this instance's session per the grandparent/
      parent/child hierarchy (ADR-0004): the page-wide shared "grandparent"
