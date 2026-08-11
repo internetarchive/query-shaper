@@ -30,6 +30,11 @@ cpSync(join(root, 'logo.svg'), join(outDir, 'logo.svg'))
 // still available at a known path for anyone who needs the raster version directly.
 cpSync(join(root, 'logo.png'), join(outDir, 'logo.png'))
 
+// The social-preview banner every page's og:image/twitter:image points at by
+// absolute URL (https://internetarchive.github.io/query-shaper/banner.png) — it
+// has to actually exist at the site root once deployed.
+cpSync(join(root, 'banner.png'), join(outDir, 'banner.png'))
+
 // The built ESM module, placed at the site root so demo/docs's rewritten script tag
 // (../query-shaper.js, see below) and any future top-level page can reach it the
 // same way.
@@ -58,6 +63,7 @@ console.log(`Wrote a self-contained site to ${outDir}:`)
 console.log('  index.html')
 console.log('  logo.svg')
 console.log('  logo.png')
+console.log('  banner.png')
 console.log('  query-shaper.js')
 console.log('  demo/index.html')
 console.log('  docs/index.html')

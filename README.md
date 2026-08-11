@@ -1,5 +1,7 @@
 # Query Shaper
 
+[![Query Shaper](banner.png)](https://internetarchive.github.io/query-shaper/)
+
 **[Try it live →](https://internetarchive.github.io/query-shaper/)** (landing
 page, demo, and docs — served straight from this repo's `main` branch)
 
