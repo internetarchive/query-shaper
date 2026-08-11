@@ -23,9 +23,12 @@ mkdirSync(outDir, { recursive: true })
 
 // The one shared asset every page references by a relative path (./logo.svg from
 // the root, ../logo.svg from demo/docs) — copying it to the same relative position
-// keeps every existing reference working with no rewriting needed. logo.png lives
-// in the repo for records only (nothing links to it), so it's not copied.
+// keeps every existing reference working with no rewriting needed.
 cpSync(join(root, 'logo.svg'), join(outDir, 'logo.svg'))
+
+// logo.png isn't linked from any page, but it's copied alongside logo.svg so it's
+// still available at a known path for anyone who needs the raster version directly.
+cpSync(join(root, 'logo.png'), join(outDir, 'logo.png'))
 
 // The built ESM module, placed at the site root so demo/docs's rewritten script tag
 // (../query-shaper.js, see below) and any future top-level page can reach it the
@@ -54,6 +57,7 @@ for (const page of ['demo', 'docs']) {
 console.log(`Wrote a self-contained site to ${outDir}:`)
 console.log('  index.html')
 console.log('  logo.svg')
+console.log('  logo.png')
 console.log('  query-shaper.js')
 console.log('  demo/index.html')
 console.log('  docs/index.html')
