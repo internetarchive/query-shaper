@@ -7,7 +7,7 @@
   "author": "Sawood Alam <sawood@archive.org>",
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@git.archive.org/sawood/query-shaper.git"
+    "url": "git+https://github.com/internetarchive/query-shaper.git"
   },
   "keywords": [
     "web-component",

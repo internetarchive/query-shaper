@@ -9,7 +9,7 @@ Elements (no Lit/framework runtime dependency)" up front — flagged, not
 separately grilled. This revisits that choice now that the system's actual
 shape is known, rather than leaving it as an unexamined assumption a later
 reader has to take on faith (or re-litigate from scratch, as happened once
-already — see GitLab #24).
+already — see #24).
 
 ## Decision
 

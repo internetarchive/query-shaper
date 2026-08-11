@@ -33,7 +33,7 @@ that every Format had to coexist with, whether or not they used it:
 
 None of that was wrong when it was built — SQL and REST-API Expression
 support were each deliberately, carefully designed (see the original
-tickets, GitLab #7 and #8) — but living inside a component whose other
+tickets, #7 and #8) — but living inside a component whose other
 three Formats are all "search box that suggests field/value refinements"
 meant every shared piece of the prompt, schema, and vocabulary had to keep
 three genuinely different backend shapes simultaneously in mind. That
@@ -52,13 +52,13 @@ backends: `lucene`, `url-params`, `simple-query-string`, plus the
 `.format` custom-render-function escape hatch.
 
 `base` and the `url-params`+`base` full-URL composition it enables are
-**kept** — `base` was originally introduced alongside `rest-api` (GitLab
-#8 bundled them together), but it is used today by `url-params` on its own
+**kept** — `base` was originally introduced alongside `rest-api` (#8
+bundled them together), but it is used today by `url-params` on its own
 merits (composing a full URL instead of a bare query string for
 facet-driven backends), independent of any endpoint-selection behavior
 `rest-api` added on top. `output`/`none` Actions and the `destination`
-attribute are also kept unaffected — they shipped independently (GitLab
-#6, before either SQL or REST-API support existed) and apply to any
+attribute are also kept unaffected — they shipped independently (#6,
+before either SQL or REST-API support existed) and apply to any
 Format, not just the two being removed.
 
 Before removal, two comprehensive handoff documents were written
