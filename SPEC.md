@@ -512,6 +512,8 @@ inline result-fetching in any case.
 - **Testing**: mock `window.LanguageModel` for unit tests; a small
   Playwright/real-Chrome suite for end-to-end checks against the demo.
 - **Stack**: TypeScript source, vanilla Custom Elements (no Lit/framework
-  runtime dependency), Shadow DOM with CSS custom properties + `::part()`
-  for host theming, built to an ESM npm package (`query-shaper` — confirmed
-  available) plus a CDN-servable bundle.
+  runtime dependency — revisited in ADR-0010 once the system's full scope
+  was known, and reaffirmed for more specific reasons than stated here),
+  Shadow DOM with CSS custom properties + `::part()` for host theming,
+  built to an ESM npm package (`query-shaper` — confirmed available) plus
+  a CDN-servable bundle.
