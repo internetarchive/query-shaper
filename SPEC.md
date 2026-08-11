@@ -515,11 +515,18 @@ inline result-fetching in any case.
   runtime dependency — revisited in ADR-0010 once the system's full scope
   was known, and reaffirmed for more specific reasons than stated here),
   Shadow DOM with CSS custom properties + `::part()` for host theming,
-  built to an ESM npm package (`query-shaper` — confirmed available) plus
-  a CDN-servable bundle.
+  built to an ESM npm package (`@internetarchive/query-shaper`) plus a
+  CDN-servable bundle.
 - **Deployment**: `npm run build:site` assembles the landing/demo/docs
   pages plus the built module into a self-contained `site/` directory; a
   GitHub Actions workflow runs it (after typecheck/lint/test) on every
   push to `main` and publishes the result to GitHub Pages at
   https://internetarchive.github.io/query-shaper/ — served over HTTPS,
   satisfying the secure-context requirement noted above.
+- **Publishing**: `.github/workflows/publish-npm.yml` publishes
+  `@internetarchive/query-shaper` to npm on every GitHub Release
+  (`release: published`), authenticating via npm's OIDC Trusted
+  Publishing rather than a stored token — see ADR-0011 for the
+  namespace, versioning-discipline, dist-tag, and first-publish-bootstrap
+  reasoning (this one was separately grilled, unlike the rest of this
+  section).

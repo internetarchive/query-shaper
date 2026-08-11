@@ -266,8 +266,9 @@
     <section id="installation">
       <h2>Installation</h2>
       <p>
-        <code>query-shaper</code> isn't published to npm yet, and there's no CDN/UMD build — only
-        an ES module. Two paths, depending on where the project is when you're reading this:
+        <code>@internetarchive/query-shaper</code> isn't published to npm yet, and there's no
+        CDN/UMD build — only an ES module. Two paths, depending on where the project is when
+        you're reading this:
       </p>
       <h3>Right now</h3>
       <pre><code>git clone &lt;this repo&gt;
@@ -287,8 +288,8 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
         call to initialize it.
       </p>
       <h3>Once published</h3>
-      <pre><code>npm install query-shaper</code></pre>
-      <pre><code>import 'query-shaper'</code></pre>
+      <pre><code>npm install @internetarchive/query-shaper</code></pre>
+      <pre><code>import '@internetarchive/query-shaper'</code></pre>
       <p>
         A plain <code>&lt;script src="..."&gt;</code> without <code>type="module"</code> will not
         work — there's no non-module build.
