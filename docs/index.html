@@ -266,11 +266,19 @@
     <section id="installation">
       <h2>Installation</h2>
       <p>
-        <code>@internetarchive/query-shaper</code> isn't published to npm yet, and there's no
-        CDN/UMD build — only an ES module. Two paths, depending on where the project is when
-        you're reading this:
+        <code>@internetarchive/query-shaper</code> is published on npm; there's no CDN/UMD build
+        — only an ES module.
       </p>
-      <h3>Right now</h3>
+      <h3>From npm</h3>
+      <pre><code>npm install @internetarchive/query-shaper</code></pre>
+      <pre><code>import '@internetarchive/query-shaper'</code></pre>
+      <p>
+        Importing the module is enough — it registers <code>&lt;query-shaper&gt;</code> as a
+        custom element as a side effect. There's nothing to call to initialize it. A plain
+        <code>&lt;script src="..."&gt;</code> without <code>type="module"</code> will not work —
+        there's no non-module build.
+      </p>
+      <h3>From source</h3>
       <pre><code>git clone &lt;this repo&gt;
 cd query-shaper
 npm install
@@ -280,19 +288,7 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
         your own project and self-host it, then either:
       </p>
       <pre><code>&lt;script type="module" src="/path/to/query-shaper.js"&gt;&lt;/script&gt;</code></pre>
-      <p>or, in a bundler-based project:</p>
-      <pre><code>import 'query-shaper/dist/query-shaper.js'</code></pre>
-      <p>
-        Either way, importing the module is enough — it registers
-        <code>&lt;query-shaper&gt;</code> as a custom element as a side effect. There's nothing to
-        call to initialize it.
-      </p>
-      <h3>Once published</h3>
-      <pre><code>npm install @internetarchive/query-shaper</code></pre>
-      <pre><code>import '@internetarchive/query-shaper'</code></pre>
-      <p>
-        A plain <code>&lt;script src="..."&gt;</code> without <code>type="module"</code> will not
-        work — there's no non-module build.
+      <p>or, in a bundler-based project, import it by that same relative path.
       </p>
     </section>
 

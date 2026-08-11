@@ -39,13 +39,28 @@ built-in AI APIs, query interpretation:
 
 ## Status
 
-Early development, pre-release (`0.0.1`, unpublished). The core behavior
-tracked in `SPEC.md` — Suggestion generation (one Lucene-style string per
-Suggestion, decomposed and re-rendered internally; Fields/Examples/Notes
-drive fielded reformulation), the `lucene`/`url-params`/`simple-query-string`
-Formats, Actions, History, the accessible popup UI, and the demo page — is
+Early development, pre-1.0, published to npm as
+`@internetarchive/query-shaper`. The core behavior tracked in `SPEC.md` —
+Suggestion generation (one Lucene-style string per Suggestion, decomposed
+and re-rendered internally; Fields/Examples/Notes drive fielded
+reformulation), the `lucene`/`url-params`/`simple-query-string` Formats,
+Actions, History, the accessible popup UI, and the demo page — is
 implemented; see `CONTEXT.md` for the vocabulary and `docs/adr/` for the
 hardest-to-reverse architectural calls.
+
+## Installation
+
+```sh
+npm install @internetarchive/query-shaper
+```
+
+```js
+import '@internetarchive/query-shaper'
+```
+
+Importing the module is enough — it registers `<query-shaper>` as a
+custom element as a side effect. There's nothing to call to initialize
+it.
 
 ## Development
 
