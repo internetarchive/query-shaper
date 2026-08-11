@@ -9,6 +9,7 @@
     "type": "git",
     "url": "git+https://github.com/internetarchive/query-shaper.git"
   },
+  "homepage": "https://internetarchive.github.io/query-shaper/",
   "keywords": [
     "web-component",
     "custom-element",

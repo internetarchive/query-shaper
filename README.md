@@ -1,5 +1,8 @@
 # Query Shaper
 
+**[Try it live →](https://internetarchive.github.io/query-shaper/)** (landing
+page, demo, and docs — served straight from this repo's `main` branch)
+
 `<query-shaper>` is a web component you attach to a search input to turn a
 natural-language query into something a search backend can actually use.
 

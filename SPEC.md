@@ -517,3 +517,9 @@ inline result-fetching in any case.
   Shadow DOM with CSS custom properties + `::part()` for host theming,
   built to an ESM npm package (`query-shaper` — confirmed available) plus
   a CDN-servable bundle.
+- **Deployment**: `npm run build:site` assembles the landing/demo/docs
+  pages plus the built module into a self-contained `site/` directory; a
+  GitHub Actions workflow runs it (after typecheck/lint/test) on every
+  push to `main` and publishes the result to GitHub Pages at
+  https://internetarchive.github.io/query-shaper/ — served over HTTPS,
+  satisfying the secure-context requirement noted above.
