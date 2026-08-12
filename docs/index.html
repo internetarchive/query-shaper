@@ -2,24 +2,24 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Query Shaper — Docs</title>
+    <title>Query Shaper: Docs</title>
     <meta
       name="description"
-      content="Integration docs for &lt;query-shaper&gt; — requirements, attributes, events, and styling, with a live interactive example."
+      content="Integration docs for &lt;query-shaper&gt;: requirements, attributes, events, and styling, with a live interactive example."
     />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Query Shaper — Docs" />
+    <meta property="og:title" content="Query Shaper: Docs" />
     <meta
       property="og:description"
-      content="Integration docs for &lt;query-shaper&gt; — requirements, attributes, events, and styling, with a live interactive example."
+      content="Integration docs for &lt;query-shaper&gt;: requirements, attributes, events, and styling, with a live interactive example."
     />
     <meta property="og:image" content="https://internetarchive.github.io/query-shaper/banner.png" />
     <meta property="og:url" content="https://internetarchive.github.io/query-shaper/docs/" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Query Shaper — Docs" />
+    <meta name="twitter:title" content="Query Shaper: Docs" />
     <meta
       name="twitter:description"
-      content="Integration docs for &lt;query-shaper&gt; — requirements, attributes, events, and styling, with a live interactive example."
+      content="Integration docs for &lt;query-shaper&gt;: requirements, attributes, events, and styling, with a live interactive example."
     />
     <meta name="twitter:image" content="https://internetarchive.github.io/query-shaper/banner.png" />
     <link
@@ -193,7 +193,7 @@
     <p>
       How to attach <code>&lt;query-shaper&gt;</code> to a search input on your own page. For the
       design rationale behind these decisions, see this repo's <code>SPEC.md</code>,
-      <code>CONTEXT.md</code>, and <code>docs/adr/</code> instead — this page is written for
+      <code>CONTEXT.md</code>, and <code>docs/adr/</code> instead: this page is written for
       integrators, not maintainers.
     </p>
 
@@ -252,11 +252,11 @@
         <a href="https://developer.chrome.com/docs/ai/prompt-api#hardware-requirements"
           >adequate hardware resources</a
         >
-        for the on-device model, served from a secure context — <code>https:</code>, or
+        for the on-device model, served from a secure context: <code>https:</code>, or
         <code>localhost</code>/<code>127.0.0.1</code> for local development. Plain
         <code>http:</code> on a real domain doesn't qualify, even on an otherwise-supported
-        browser. Everywhere else — an unsupported browser, an insecure context, or supported
-        Chrome on underpowered hardware — it's a no-op: the Target keeps working exactly like a
+        browser. Everywhere else (an unsupported browser, an insecure context, or supported
+        Chrome on underpowered hardware), it's a no-op: the Target keeps working exactly like a
         plain <code>&lt;input&gt;</code>/<code>&lt;textarea&gt;</code>, no Suggestions, no errors.
         Treat it as a progressive enhancement, never a requirement for your search box to
         function.
@@ -266,17 +266,28 @@
     <section id="installation">
       <h2>Installation</h2>
       <p>
-        <code>@internetarchive/query-shaper</code> is published on npm; there's no CDN/UMD build
-        — only an ES module.
+        <code>@internetarchive/query-shaper</code> is published on npm. There's no UMD/global
+        build, but since jsdelivr and unpkg automatically mirror npm packages, a CDN URL for the
+        ES module already works with no build step of your own.
       </p>
       <h3>From npm</h3>
       <pre><code>npm install @internetarchive/query-shaper</code></pre>
       <pre><code>import '@internetarchive/query-shaper'</code></pre>
       <p>
-        Importing the module is enough — it registers <code>&lt;query-shaper&gt;</code> as a
+        Importing the module is enough: it registers <code>&lt;query-shaper&gt;</code> as a
         custom element as a side effect. There's nothing to call to initialize it. A plain
-        <code>&lt;script src="..."&gt;</code> without <code>type="module"</code> will not work —
-        there's no non-module build.
+        <code>&lt;script src="..."&gt;</code> without <code>type="module"</code> will not work,
+        since there's no non-module build.
+      </p>
+      <h3>From a CDN</h3>
+      <pre><code>&lt;script
+  type="module"
+  src="https://cdn.jsdelivr.net/npm/@internetarchive/query-shaper/dist/query-shaper.js"
+&gt;&lt;/script&gt;</code></pre>
+      <p>
+        Or the equivalent unpkg URL:
+        <code>https://unpkg.com/@internetarchive/query-shaper/dist/query-shaper.js</code>. No
+        install step at all, at the cost of depending on a third party to keep serving it.
       </p>
       <h3>From source</h3>
       <pre><code>git clone &lt;this repo&gt;
@@ -307,8 +318,8 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
         on-device model session. As the user types and pauses for a moment, Suggestions appear in
         a built-in popup underneath the input; accepting one fills the input by default (see
         <a href="#actions">Actions</a> for other behaviors). With no <code>fields</code> declared,
-        Suggestions stay plain rewordings — typo fixes, finished-out phrases, broader related
-        terms — never a fielded reformulation, since nothing was declared to reformulate against.
+        Suggestions stay plain rewordings (typo fixes, finished-out phrases, broader related
+        terms), never a fielded reformulation, since nothing was declared to reformulate against.
       </p>
     </section>
 
@@ -317,14 +328,14 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
       <p>
         Declare what fields your backend supports so Suggestions can reformulate into
         <code>field:value</code> syntax, via the <code>fields</code> attribute or
-        <code>.fields</code> property. Two forms — pick whichever fits:
+        <code>.fields</code> property. Two forms, pick whichever fits:
       </p>
-      <p><strong>Inline JSON</strong> — an array of field descriptors:</p>
+      <p><strong>Inline JSON</strong> is an array of field descriptors:</p>
       <pre><code>&lt;query-shaper
   for="search"
   fields='[{"name":"category"},{"name":"price","type":"number"},{"name":"in_stock","type":"boolean"},{"name":"language","description":"ISO 639-1 code, e.g. en, fr, ja"}]'
 &gt;&lt;/query-shaper&gt;</code></pre>
-      <p><strong>Free-form text</strong> — a human-written description:</p>
+      <p><strong>Free-form text</strong> is a human-written description:</p>
       <pre><code>&lt;query-shaper
   for="search"
   fields="title, author, language:iso-639-1, date (allowed patterns YYYY[-MM[-DD]]), categories (comma-separated list)"
@@ -337,7 +348,7 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
   description?: string
 }</code></pre>
       <p>
-        Without <code>fields</code>, the model is never told about any backend fields — a
+        Without <code>fields</code>, the model is never told about any backend fields, so a
         Suggestion that references one anyway is dropped rather than shown broken.
       </p>
     </section>
@@ -345,14 +356,14 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
     <section id="examples-notes">
       <h2>Examples &amp; Notes</h2>
       <p>
-        Two optional, declarative levers for steering generation without touching code —
+        Two optional, declarative levers for steering generation without touching code,
         especially useful once <code>fields</code> is involved, since the model can otherwise
         revert to describing a fielded intent in prose instead of committing to real
         <code>field:value</code> syntax.
       </p>
       <p>
-        <strong><code>examples</code></strong> — few-shot input/Suggestions pairs, an array of
-        <code>{ input, suggestions }</code> (plural — one input can have more than one good
+        <strong><code>examples</code></strong> is few-shot input/Suggestions pairs, an array of
+        <code>{ input, suggestions }</code> (plural, since one input can have more than one good
         answer):
       </p>
       <pre><code>&lt;query-shaper
@@ -370,17 +381,18 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
   suggestions: string[]   // plural: one input can have more than one good answer
 }</code></pre>
       <p>
-        <strong><code>notes</code></strong> — free-form prose for domain-specific guidance that
-        doesn't fit the input/Suggestions pair shape — a business rule, a unit convention, a
-        disambiguation hint:
+        <strong><code>notes</code></strong> is free-form prose for domain-specific guidance that
+        doesn't fit the input/Suggestions pair shape (a business rule, a unit convention, a
+        disambiguation hint):
       </p>
       <pre><code>&lt;query-shaper
   for="search"
-  notes='A book or series title (e.g. "Harry Potter") always belongs in the title field, never author — author is only for the name of an actual person.'
+  notes='A book or series title (e.g. "Harry Potter") always belongs in the title field, never author: author is only for the name of an actual person.'
 &gt;&lt;/query-shaper&gt;</code></pre>
       <p>
-        <code>examples</code> teaches by demonstration, <code>notes</code> teaches by instruction —
-        using both together is expected for a backend with real quirks. Both accept JSON or a
+        <code>examples</code> teaches by demonstration, <code>notes</code> teaches by
+        instruction. Using both together is expected for a backend with real quirks. Both accept
+        JSON or a
         free-form string, same fallback rule as <code>fields</code>.
       </p>
     </section>
@@ -389,25 +401,25 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
       <h2>Format</h2>
       <p>
         The model always writes every Suggestion as Lucene-style text, regardless of
-        <code>format</code> — <code>format</code> only controls how
+        <code>format</code>: <code>format</code> only controls how
         <code>&lt;query-shaper&gt;</code> re-renders that text for your specific backend:
       </p>
       <ul>
         <li>
-          <code>format="lucene"</code> (default) — the model's own text, used verbatim, since it's
+          <code>format="lucene"</code> (default): the model's own text, used verbatim, since it's
           already meant to be Lucene syntax.
         </li>
         <li>
-          <code>format="url-params"</code> — field/value pairs as URL query parameters. Add a
+          <code>format="url-params"</code>: field/value pairs as URL query parameters. Add a
           <code>base</code> attribute to compose a full URL instead of a bare query string.
         </li>
         <li>
-          <code>format="simple-query-string"</code> — the classic
+          <code>format="simple-query-string"</code>: the classic
           <code>+required -excluded "exact phrase"</code> style (Elasticsearch's
           <code>simple_query_string</code>, MySQL boolean full-text mode).
         </li>
         <li>
-          A custom <code>.format</code> property — a function over decomposed
+          A custom <code>.format</code> property: a function over decomposed
           <code>{ field?, value, operator? }</code> tuples, for shapes neither preset covers. Can
           only be set imperatively (a function isn't expressible as an attribute):
         </li>
@@ -453,7 +465,7 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
           <tr>
             <td><code>none</code></td>
             <td>
-              Does nothing itself — <code>query-shaper-accept</code> still fires and History still
+              Does nothing itself: <code>query-shaper-accept</code> still fires and History still
               records, but the host handles everything else.
             </td>
           </tr>
@@ -462,12 +474,12 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
       <p>
         <code>action</code> is orthogonal to <code>headless</code>: <code>headless</code> controls
         whether <code>&lt;query-shaper&gt;</code> renders its own popup at all, <code>action</code>
-        controls what <code>accept()</code> does once called — by either popup.
+        controls what <code>accept()</code> does once called (by either popup).
       </p>
       <p>
         Want to call your own function when a Suggestion is accepted, rather than fill/submit/
         navigate/write? <code>action="none"</code> plus a <code>query-shaper-accept</code>
-        listener already gives you exactly that — <code>detail.suggestion</code> is the precise
+        listener already gives you exactly that: <code>detail.suggestion</code> is the precise
         text of whichever Suggestion was accepted, not just notice that something was:
       </p>
       <pre><code>&lt;query-shaper for="search" action="none"&gt;&lt;/query-shaper&gt;</code></pre>
@@ -481,12 +493,12 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
       <p>
         A bounded, recycling record of prior finalized queries, persisted in
         <code>localStorage</code> and fed back to the model as few-shot context. Each entry pairs
-        the <em>original</em> Search Text with the Suggestion that was Accepted for it — this
+        the <em>original</em> Search Text with the Suggestion that was Accepted for it. This
         pairing, not just the final text, is what lets the model infer intent from precedent.
       </p>
       <ul>
-        <li><code>max-history</code> — cap on stored entries and how many feed into generation. Defaults to 10; <code>0</code> disables History entirely and clears any existing entries.</li>
-        <li><code>history-key</code> — overrides the <code>localStorage</code> partition key. Defaults to the Target's <code>id</code>; set this only when multiple instances should deliberately share one History.</li>
+        <li><code>max-history</code>: cap on stored entries and how many feed into generation. Defaults to 10; <code>0</code> disables History entirely and clears any existing entries.</li>
+        <li><code>history-key</code>: overrides the <code>localStorage</code> partition key. Defaults to the Target's <code>id</code>; set this only when multiple instances should deliberately share one History.</li>
       </ul>
     </section>
 
@@ -494,7 +506,7 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
       <h2>Styling</h2>
       <p>
         The built-in popup renders in a Shadow DOM (<code>mode: "open"</code>), themed via CSS
-        custom properties — set them on <code>query-shaper</code> itself, or inherit them from an
+        custom properties that you set on <code>query-shaper</code> itself, or inherit from an
         ancestor:
       </p>
       <table>
@@ -527,7 +539,7 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
           </tr>
           <tr>
             <td><code>--query-shaper-active-background</code></td>
-            <td><code>#e0e0ff</code> — the keyboard-active/hovered option</td>
+            <td><code>#e0e0ff</code>: the keyboard-active/hovered option</td>
           </tr>
         </tbody>
       </table>
@@ -536,9 +548,10 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
         <code>::part()</code>: <code>popup</code> (the outer container),
         <code>listbox</code> (the suggestion list), <code>option</code> (each suggestion),
         <code>output</code> (the element <code>action="output"</code> writes to when no
-        <code>destination</code> is given), and — suppressed entirely when <code>headless</code> —
+        <code>destination</code> is given), and
         <code>download-prompt</code>/<code>download-enable</code>/<code>download-dismiss</code> and
-        <code>downloading-notice</code> for the download messages.
+        <code>downloading-notice</code> for the download messages (suppressed entirely when
+        <code>headless</code>).
       </p>
       <pre><code>query-shaper {
   --query-shaper-background: #1e1e2e;
@@ -550,15 +563,15 @@ query-shaper::part(option) {
 }</code></pre>
       <p>
         For full visual control, skip all of this and go <a href="#headless"><code>headless</code></a>
-        instead — build the entire popup yourself from the events below.
+        instead: build the entire popup yourself from the events below.
       </p>
     </section>
 
     <section id="headless">
       <h2>Headless Mode &amp; Events</h2>
       <p>
-        Set the <code>headless</code> boolean attribute to render no popup UI at all — including
-        the built-in download-prompt messages — and drive your own UI entirely from events fired
+        Set the <code>headless</code> boolean attribute to render no popup UI at all (including
+        the built-in download-prompt messages) and drive your own UI entirely from events fired
         on the <code>&lt;query-shaper&gt;</code> element itself:
       </p>
       <table>
@@ -598,18 +611,18 @@ query-shaper::part(option) {
         </tbody>
       </table>
       <p>
-        For a "searching" indicator, you don't need to correlate specific generations — a
+        For a "searching" indicator, you don't need to correlate specific generations: a
         superseded call's outcome is always silently discarded internally, so it's safe to just
         show the indicator on any <code>query-shaper-generating</code> and hide it on any
         <code>query-shaper-suggestions</code>/<code>query-shaper-error</code> that follows. If your
         own input can go back to empty, also clear your rendered results immediately on your own
-        <code>input</code> listener rather than waiting for the library's — clearing is
+        <code>input</code> listener rather than waiting for the library's. Clearing is
         debounced same as everything else, so there'd otherwise be a brief lag.
       </p>
       <p>
         Since <code>headless</code> suppresses the built-in "Enable"/"downloading" messages too, a
         headless host needs its own UI for the <code>downloadable</code>/<code>downloading</code>
-        statuses, and a way to actually trigger the download — that's what the public
+        statuses, and a way to actually trigger the download, which is what the public
         <code>download()</code> method is for:
       </p>
       <pre><code>if (status === 'downloadable') {
@@ -618,7 +631,7 @@ query-shaper::part(option) {
 }</code></pre>
       <p>
         The floating search box at the top of this page is itself exactly this kind of headless
-        instance — its Suggestions are section ids (<code>section:fields</code>, etc.) that this
+        instance: its Suggestions are section ids (<code>section:fields</code>, etc.) that this
         page's own script turns into links, rather than search-backend syntax. Expand its markup
         below:
       </p>
@@ -708,7 +721,7 @@ query-shaper::part(option) {
           <tr>
             <td><code>.download()</code></td>
             <td>—</td>
-            <td>Triggers the model download when status is <code>downloadable</code> — for headless hosts, which never get the built-in button.</td>
+            <td>Triggers the model download when status is <code>downloadable</code> (for headless hosts, which never get the built-in button).</td>
           </tr>
         </tbody>
       </table>
@@ -718,8 +731,8 @@ query-shaper::part(option) {
 
     <aside class="later">
       Being considered, not built yet: an option to have a custom Action generate a direct
-      AI-written answer to your question — using the on-device model with this whole page as
-      context — instead of just linking to a section.
+      AI-written answer to your question (using the on-device model with this whole page as
+      context) instead of just linking to a section.
     </aside>
 
     <footer>
@@ -827,7 +840,7 @@ query-shaper::part(option) {
 
         // Focusing the input is what actually triggers the library's own
         // availability()/session-establishment work, but query-shaper-status only fires
-        // once that resolves — which can be a few seconds away even when the model is
+        // once that resolves, which can be a few seconds away even when the model is
         // already downloaded. Give immediate feedback in the meantime.
         let gotStatus = false
         input.addEventListener('focus', () => {
@@ -850,7 +863,7 @@ query-shaper::part(option) {
             note.appendChild(button)
           } else if (status === 'downloading') {
             note.removeAttribute('id')
-            setNote('Downloading the on-device model — this can take a while on first load.')
+            setNote('Downloading the on-device model. This can take a while on first load.')
           } else if (status === 'available') {
             note.removeAttribute('id')
             setNote('')

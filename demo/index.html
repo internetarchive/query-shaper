@@ -2,24 +2,24 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Query Shaper — Demo</title>
+    <title>Query Shaper: Demo</title>
     <meta
       name="description"
-      content="Try &lt;query-shaper&gt; against real search backends — Internet Archive, Open Library, Wayback Machine, and generic search forms."
+      content="Try &lt;query-shaper&gt; against real search backends: Internet Archive, Open Library, Wayback Machine, and generic search forms."
     />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Query Shaper — Demo" />
+    <meta property="og:title" content="Query Shaper: Demo" />
     <meta
       property="og:description"
-      content="Try &lt;query-shaper&gt; against real search backends — Internet Archive, Open Library, Wayback Machine, and generic search forms."
+      content="Try &lt;query-shaper&gt; against real search backends: Internet Archive, Open Library, Wayback Machine, and generic search forms."
     />
     <meta property="og:image" content="https://internetarchive.github.io/query-shaper/banner.png" />
     <meta property="og:url" content="https://internetarchive.github.io/query-shaper/demo/" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Query Shaper — Demo" />
+    <meta name="twitter:title" content="Query Shaper: Demo" />
     <meta
       name="twitter:description"
-      content="Try &lt;query-shaper&gt; against real search backends — Internet Archive, Open Library, Wayback Machine, and generic search forms."
+      content="Try &lt;query-shaper&gt; against real search backends: Internet Archive, Open Library, Wayback Machine, and generic search forms."
     />
     <meta name="twitter:image" content="https://internetarchive.github.io/query-shaper/banner.png" />
     <link
@@ -142,7 +142,7 @@
     </div>
     <p>
       Each instance below enhances a plain search input with on-device AI
-      Suggestions — plain rewordings (typo fixes, finished-out phrases,
+      Suggestions: plain rewordings (typo fixes, finished-out phrases,
       broader related terms) mixed freely with fielded/boolean
       reformulations wherever Fields are configured, never labeled or
       capped by which kind of improvement a given one is. Type a
@@ -225,7 +225,7 @@
     {"input":"harry poter books","suggestions":["title:\"harry potter\"","harry potter books"]},
     {"input":"classic fantasy novels","suggestions":["title:fantasy","fantasy novels","classic fantasy books","title:\"lord of the rings\"","fantasy literature classics"]}
   ]'
-  notes="A book or series title (e.g. &amp;quot;Harry Potter&amp;quot;, &amp;quot;Lord of the Rings&amp;quot;) always belongs in the title field, never author — only a real person's name belongs in author."
+  notes="A book or series title (e.g. &amp;quot;Harry Potter&amp;quot;, &amp;quot;Lord of the Rings&amp;quot;) always belongs in the title field, never author: only a real person's name belongs in author."
   format="lucene"
   action="opensearch"
   template="https://openlibrary.org/search?q={searchTerms}&amp;mode=everything"
@@ -245,7 +245,7 @@
             {"input":"harry poter books","suggestions":["title:\"harry potter\"","harry potter books"]},
             {"input":"classic fantasy novels","suggestions":["title:fantasy","fantasy novels","classic fantasy books","title:\"lord of the rings\"","fantasy literature classics"]}
           ]'
-          notes="A book or series title (e.g. &quot;Harry Potter&quot;, &quot;Lord of the Rings&quot;) always belongs in the title field, never author — only a real person's name belongs in author."
+          notes="A book or series title (e.g. &quot;Harry Potter&quot;, &quot;Lord of the Rings&quot;) always belongs in the title field, never author: only a real person's name belongs in author."
           format="lucene"
           action="opensearch"
           template="https://openlibrary.org/search?q={searchTerms}&mode=everything"
@@ -254,7 +254,7 @@
     </section>
 
     <section>
-      <h2>3. Wayback Machine — <code>gov</code> collection search</h2>
+      <h2>3. Wayback Machine: <code>gov</code> collection search</h2>
       <p>
         The <code>gov</code> collection itself is fixed configuration baked
         into the <code>template</code>, never a Field the model varies.
@@ -306,7 +306,7 @@
     <section>
       <h2>4. No Fields declared</h2>
       <p>
-        No <code>fields</code> attribute at all — the model is never told
+        No <code>fields</code> attribute at all: the model is never told
         about any backend fields, so Suggestions stay plain rewordings
         (typo fixes, finished-out phrases, broader related terms) and never
         attempt a fielded reformulation, since there's nothing declared to
@@ -324,7 +324,7 @@
       <h2>5. Free-form text Fields</h2>
       <p>
         A loosely specified, human-written Fields description still produces
-        sensible Expression Suggestions — helped along here by
+        sensible Expression Suggestions, helped along here by
         <code>examples</code>, since a harder-to-parse prose Fields
         declaration measurably needed more encouragement to attempt a
         fielded Suggestion at all, covering a range, negation, and grouping.
@@ -398,7 +398,7 @@
     <section>
       <h2>7. Custom <code>.format</code> render function</h2>
       <p>
-        The escape hatch for backends neither built-in preset covers — a
+        The escape hatch for backends neither built-in preset covers. A
         render function can't be expressed as an attribute, so it's set
         imperatively on the <code>.format</code> property once the element
         is defined. This one renders <code>field=value</code> pairs joined
@@ -453,7 +453,7 @@
       } else {
         setBanner(
           'orange',
-          'Click into one of the search boxes below to load the on-device model — the first load can take several seconds.',
+          'Click into one of the search boxes below to load the on-device model. The first load can take several seconds.',
         )
         let settled = false
         let hasStartedLoading = false
@@ -461,7 +461,7 @@
           input.addEventListener('focus', () => {
             if (settled || hasStartedLoading) return
             hasStartedLoading = true
-            setBanner('orange', 'Loading the on-device model — this may take several seconds.')
+            setBanner('orange', 'Loading the on-device model. This may take several seconds.')
           })
         })
         document.querySelectorAll('query-shaper').forEach((shaper) => {
@@ -475,18 +475,18 @@
             } else if (status === 'downloadable') {
               setBanner(
                 'orange',
-                'The on-device model needs to download before Suggestions can work — click the prompt under the search box you focused to start it.',
+                'The on-device model needs to download before Suggestions can work. Click the prompt under the search box you focused to start it.',
               )
             } else if (status === 'downloading') {
               setBanner(
                 'orange',
-                'Downloading the on-device model — this can take a while depending on your connection. Suggestions will work once it\'s ready.',
+                'Downloading the on-device model. This can take a while depending on your connection. Suggestions will work once it\'s ready.',
               )
             } else if (status === 'available') {
               settled = true
               setBanner(
                 'green',
-                'Model loaded — start typing a natural-language query and pause for a few seconds to see Suggestions.',
+                'Model loaded. Start typing a natural-language query and pause for a few seconds to see Suggestions.',
               )
             }
           })
