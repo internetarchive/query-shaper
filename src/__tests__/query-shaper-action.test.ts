@@ -160,4 +160,41 @@ describe('QueryShaper Action', () => {
     const output = shaper.shadowRoot?.querySelector('output')
     expect(output?.textContent).toBe('SELECT * FROM books')
   })
+
+  it('clears the internal <output> when its dismiss button is clicked, but not on a new suggestion or blank input', () => {
+    const { shaper, input } = mount()
+    shaper.setAttribute('action', 'output')
+
+    shaper.accept('SELECT * FROM books')
+    const output = shaper.shadowRoot?.querySelector('[part="output"]')
+    expect(output?.textContent).toBe('SELECT * FROM books')
+
+    input.value = ''
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    expect(output?.textContent).toBe('SELECT * FROM books')
+
+    const dismissButton = shaper.shadowRoot?.querySelector('[part="output-dismiss"]')
+    dismissButton?.dispatchEvent(new Event('click', { bubbles: true }))
+
+    expect(output?.textContent).toBe('')
+  })
+
+  it('does not add a dismiss button\'s effect to a custom destination', () => {
+    const { shaper } = mount()
+    const pre = document.createElement('pre')
+    pre.id = 'preview'
+    document.body.appendChild(pre)
+    shaper.setAttribute('action', 'output')
+    shaper.setAttribute('destination', '#preview')
+
+    shaper.accept('SELECT * FROM books')
+    expect(pre.textContent).toBe('SELECT * FROM books')
+
+    const dismissButton = shaper.shadowRoot?.querySelector('[part="output-dismiss"]')
+    dismissButton?.dispatchEvent(new Event('click', { bubbles: true }))
+
+    // The dismiss button only ever clears query-shaper's own internal <output>.
+    // A host-provided destination stays exactly as the host left it.
+    expect(pre.textContent).toBe('SELECT * FROM books')
+  })
 })

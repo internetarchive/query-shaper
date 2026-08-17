@@ -131,6 +131,12 @@ const SHADOW_STYLES = `
     color: var(--query-shaper-color, #111);
     padding: var(--query-shaper-option-padding, 0.5em 0.75em);
   }
+  [part="output-container"] {
+    position: relative;
+  }
+  [part="output-container"]:has([part="output"]:empty) {
+    display: none;
+  }
   [part="output"]:empty {
     display: none;
   }
@@ -140,7 +146,23 @@ const SHADOW_STYLES = `
     border: 1px solid var(--query-shaper-border-color, #ccc);
     color: var(--query-shaper-color, #111);
     padding: var(--query-shaper-option-padding, 0.5em 0.75em);
+    padding-right: 2em;
     white-space: pre-wrap;
+  }
+  [part="output"]:empty + [part="output-dismiss"] {
+    display: none;
+  }
+  [part="output-dismiss"] {
+    position: absolute;
+    top: 0.25em;
+    right: 0.25em;
+    border: none;
+    background: none;
+    color: var(--query-shaper-color, #111);
+    cursor: pointer;
+    font-size: 1em;
+    line-height: 1;
+    padding: 0.25em;
   }
 `
 
@@ -188,9 +210,21 @@ export class QueryShaper extends HTMLElement {
     popup.appendChild(this.#listboxContainer)
     this.#downloadPromptContainer = document.createElement('div')
     popup.appendChild(this.#downloadPromptContainer)
+
+    const outputContainer = document.createElement('div')
+    outputContainer.setAttribute('part', 'output-container')
     this.#defaultOutput = document.createElement('output')
     this.#defaultOutput.setAttribute('part', 'output')
-    popup.appendChild(this.#defaultOutput)
+    outputContainer.appendChild(this.#defaultOutput)
+    const outputDismiss = document.createElement('button')
+    outputDismiss.setAttribute('part', 'output-dismiss')
+    outputDismiss.setAttribute('aria-label', 'Clear output')
+    outputDismiss.textContent = '×'
+    outputDismiss.addEventListener('click', () => {
+      this.#defaultOutput.textContent = ''
+    })
+    outputContainer.appendChild(outputDismiss)
+    popup.appendChild(outputContainer)
   }
 
   #fieldsOverride: Fields | undefined

@@ -548,7 +548,10 @@ npm run build   # emits dist/query-shaper.js (ESM)</code></pre>
         <code>::part()</code>: <code>popup</code> (the outer container),
         <code>listbox</code> (the suggestion list), <code>option</code> (each suggestion),
         <code>output</code> (the element <code>action="output"</code> writes to when no
-        <code>destination</code> is given), and
+        <code>destination</code> is given), <code>output-container</code> (wraps
+        <code>output</code> and its dismiss button, positions the latter),
+        <code>output-dismiss</code> (clears <code>output</code>, visible only once it has
+        content), and
         <code>download-prompt</code>/<code>download-enable</code>/<code>download-dismiss</code> and
         <code>downloading-notice</code> for the download messages (suppressed entirely when
         <code>headless</code>).
