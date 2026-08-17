@@ -424,6 +424,41 @@
       <query-shaper id="generic-custom-shaper" for="generic-custom" fields='[{"name":"category"},{"name":"price","type":"number"}]'></query-shaper>
     </section>
 
+    <section>
+      <h2>8. <code>output</code> Action</h2>
+      <p>
+        Fills the Target as usual, and also writes the accepted Suggestion's
+        raw text to a built-in <code>&lt;output&gt;</code> element rendered
+        below the popup (no <code>destination</code> selector given, so it
+        uses that default). Useful for showing or logging exactly what was
+        applied, since <code>fill</code> alone leaves no other trace of it.
+      </p>
+      <details>
+        <summary><code>&lt;query-shaper for="generic-output" action="output" ... /&gt;</code></summary>
+        <pre><code>&lt;query-shaper
+  for="generic-output"
+  fields='[{"name":"title"},{"name":"location"},{"name":"remote","type":"boolean"}]'
+  examples='[
+    {"input":"remote frontend jobs","suggestions":["title:frontend AND remote:true"]},
+    {"input":"jobs in berlin, not remote","suggestions":["location:berlin AND remote:false"]},
+    {"input":"backend or devops roles, remote only","suggestions":["(title:backend OR title:devops) AND remote:true"]}
+  ]'
+  action="output"
+&gt;&lt;/query-shaper&gt;</code></pre>
+      </details>
+      <input id="generic-output" type="search" placeholder="e.g. remote frontend jobs" />
+      <query-shaper
+        for="generic-output"
+        fields='[{"name":"title"},{"name":"location"},{"name":"remote","type":"boolean"}]'
+        examples='[
+          {"input":"remote frontend jobs","suggestions":["title:frontend AND remote:true"]},
+          {"input":"jobs in berlin, not remote","suggestions":["location:berlin AND remote:false"]},
+          {"input":"backend or devops roles, remote only","suggestions":["(title:backend OR title:devops) AND remote:true"]}
+        ]'
+        action="output"
+      ></query-shaper>
+    </section>
+
     <footer>
       <p>With ♡ from the <a href="https://web.archive.org/">Wayback Machine</a> team at the <a href="https://archive.org/">Internet Archive</a></p>
     </footer>

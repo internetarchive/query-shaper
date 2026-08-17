@@ -127,6 +127,7 @@ const SHADOW_STYLES = `
   }
   [part="download-prompt"], [part="downloading-notice"] {
     background: var(--query-shaper-background, #fff);
+    border: 1px solid var(--query-shaper-border-color, #ccc);
     color: var(--query-shaper-color, #111);
     padding: var(--query-shaper-option-padding, 0.5em 0.75em);
   }
@@ -136,6 +137,7 @@ const SHADOW_STYLES = `
   [part="output"] {
     display: block;
     background: var(--query-shaper-background, #fff);
+    border: 1px solid var(--query-shaper-border-color, #ccc);
     color: var(--query-shaper-color, #111);
     padding: var(--query-shaper-option-padding, 0.5em 0.75em);
     white-space: pre-wrap;
