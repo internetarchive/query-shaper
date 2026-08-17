@@ -133,6 +133,7 @@ const SHADOW_STYLES = `
   }
   [part="output-container"] {
     position: relative;
+    margin-top: 0.5em;
   }
   [part="output-container"]:has([part="output"]:empty) {
     display: none;
@@ -224,7 +225,11 @@ export class QueryShaper extends HTMLElement {
       this.#defaultOutput.textContent = ''
     })
     outputContainer.appendChild(outputDismiss)
-    popup.appendChild(outputContainer)
+    // Deliberately a sibling of popup, not nested inside it: popup is the part hosts
+    // position absolutely to float over page content, but the written-to output is a
+    // lasting record meant to sit in normal document flow, pushing later content down
+    // rather than floating over it.
+    root.appendChild(outputContainer)
   }
 
   #fieldsOverride: Fields | undefined
@@ -698,6 +703,7 @@ export class QueryShaper extends HTMLElement {
         this.#writeToDestination(suggestion)
       }
     }
+    this.#renderSuggestions([])
     this.dispatchEvent(new CustomEvent('query-shaper-accept', { detail: { suggestion, action, url } }))
     // A native form submit records History itself (see #onDocumentSubmit), avoiding a
     // double-count — but only if there's actually a form to fire that submit event.

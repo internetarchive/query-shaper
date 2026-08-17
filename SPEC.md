@@ -127,13 +127,16 @@ selector (`document.querySelectorAll`, not `id` — unlike the Target, a
 Destination can legitimately be more than one element) identifying where to
 write the accepted Suggestion's text. Sets `.value` for `<textarea>`/`<input>`
 matches, `.textContent` otherwise. Absent → defaults to an `<output>` element
-query-shaper renders in its own Shadow DOM, in the same popup container the
-downloadable-status message uses. The built-in `<output>` never clears
-itself, deliberately: it persists as a record of the last accepted
-Suggestion regardless of what's typed afterward, since that's the whole
-point of choosing `output` over `fill`. It ships with its own dismiss
-button (`::part(output-dismiss)`) so a user can clear it explicitly; a
-custom `destination` gets no such button, since it isn't ours to decorate.
+query-shaper renders in its own Shadow DOM, deliberately outside the popup
+part that hosts position absolutely to float the Suggestions listbox and
+download messages over page content: the output is a lasting record, so it
+sits in normal document flow instead, pushing later content down rather
+than floating over it. The built-in `<output>` never clears itself,
+deliberately: it persists as a record of the last accepted Suggestion
+regardless of what's typed afterward, since that's the whole point of
+choosing `output` over `fill`. It ships with its own dismiss button
+(`::part(output-dismiss)`) so a user can clear it explicitly; a custom
+`destination` gets no such button, since it isn't ours to decorate.
 
 **`max-suggestions`** (attribute): cap on the total number of Suggestions
 returned, defaulting to 5. Enforced twice: as `maxItems` on the response

@@ -243,4 +243,47 @@ describe('QueryShaper popup', () => {
     expect(shaper.shadowRoot?.querySelectorAll('[role="option"]')).toHaveLength(0)
     expect(input.getAttribute('aria-expanded')).toBe('false')
   })
+
+  it('closes the popup after accepting a suggestion (default fill action)', () => {
+    const { shaper, input } = mount()
+    shaper.dispatchEvent(
+      new CustomEvent('query-shaper-suggestions', {
+        detail: { suggestions: ['one', 'two'] },
+      }),
+    )
+    expect(shaper.shadowRoot?.querySelectorAll('[role="option"]')).toHaveLength(2)
+
+    shaper.accept('one')
+
+    expect(shaper.shadowRoot?.querySelectorAll('[role="option"]')).toHaveLength(0)
+    expect(input.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('closes the popup after accepting a suggestion when action is output', () => {
+    const { shaper } = mount()
+    shaper.setAttribute('action', 'output')
+    shaper.dispatchEvent(
+      new CustomEvent('query-shaper-suggestions', {
+        detail: { suggestions: ['SELECT * FROM books'] },
+      }),
+    )
+
+    shaper.accept('SELECT * FROM books')
+
+    expect(shaper.shadowRoot?.querySelectorAll('[role="option"]')).toHaveLength(0)
+  })
+
+  it('closes the popup after accepting a suggestion when action is none', () => {
+    const { shaper } = mount()
+    shaper.setAttribute('action', 'none')
+    shaper.dispatchEvent(
+      new CustomEvent('query-shaper-suggestions', {
+        detail: { suggestions: ['one'] },
+      }),
+    )
+
+    shaper.accept('one')
+
+    expect(shaper.shadowRoot?.querySelectorAll('[role="option"]')).toHaveLength(0)
+  })
 })
