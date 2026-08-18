@@ -109,6 +109,18 @@
           opacity: 0;
         }
       }
+      .mock-typing {
+        display: inline-block;
+        overflow: hidden;
+        white-space: nowrap;
+        vertical-align: bottom;
+        transition-property: width; /* timing-function/duration set inline by the script below */
+      }
+      /* JS-only, motion-gated -- see the script below. Never stuck clipped:
+         only added right before it's animated back open. */
+      .mock-typing.pending {
+        width: 0;
+      }
       .mock-suggestions {
         container-type: inline-size;
         list-style: none;
@@ -118,6 +130,15 @@
         border-top: none;
         border-radius: 0 0 8px 8px;
         overflow: hidden;
+        transition:
+          opacity 0.4s ease,
+          transform 0.4s ease;
+      }
+      /* Same guard as .mock-typing.pending above: JS-only, motion-gated,
+         never stuck hidden. */
+      .mock-suggestions.pending {
+        opacity: 0;
+        transform: translateY(-0.4em);
       }
       .mock-suggestions li {
         border-top: 1px solid #eee;
@@ -179,7 +200,7 @@
     <div class="mock-search">
       <div class="mock-search-input" aria-hidden="true">
         <span class="search-icon">🔍</span>
-        <span>how can i <span class="typo">lrn</span> more about query s<span class="cursor">|</span></span>
+        <span><span class="mock-typing" id="mock-typing">how can i <span class="typo">lrn</span> more about query s</span><span class="cursor">|</span></span>
       </div>
       <ul class="mock-suggestions">
         <li aria-hidden="true">
@@ -208,6 +229,34 @@
     </footer>
 
     <script type="module">
+      // The phrase and suggestions are already in their final HTML state --
+      // this just animates how they got there (typing the phrase out, then
+      // the suggestions fading in), skipped entirely under
+      // prefers-reduced-motion or if either element is missing, leaving the
+      // static markup exactly as authored.
+      //
+      // Revealed via an animated width on an overflow:hidden wrapper rather
+      // than rebuilding textContent, so the nested "lrn" typo span is never
+      // touched -- it's the same markup the whole time, just clipped at first.
+      const typingEl = document.querySelector('#mock-typing')
+      const suggestions = document.querySelector('.mock-suggestions')
+      if (typingEl && suggestions && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        typingEl.classList.add('pending')
+        const fullWidth = typingEl.scrollWidth
+        const charCount = typingEl.textContent.length
+        const duration = charCount * 90
+        suggestions.classList.add('pending')
+
+        requestAnimationFrame(() => {
+          // steps(), not linear -- reveals in charCount discrete jumps, one
+          // per character, rather than a smooth continuous width change.
+          typingEl.style.transitionTimingFunction = `steps(${charCount}, end)`
+          typingEl.style.transitionDuration = `${duration}ms`
+          typingEl.style.width = `${fullWidth}px`
+        })
+        setTimeout(() => suggestions.classList.remove('pending'), duration + 500)
+      }
+
       const links = [...document.querySelectorAll('.mock-suggestions li:not(:first-child) a')]
       links.forEach((link, index) => {
         link.addEventListener('keydown', (e) => {
