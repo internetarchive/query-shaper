@@ -56,6 +56,7 @@
         margin: 0 auto 2.5rem;
       }
       .mock-search-input {
+        position: relative;
         display: flex;
         align-items: center;
         gap: 0.6em;
@@ -64,6 +65,29 @@
         padding: 0.65em 0.9em;
         font-size: 1rem;
         background: #fff;
+      }
+      /* A native title tooltip has a real delay before showing, and won't
+         show at all if someone immediately clicks or drags to select text --
+         this appears the instant the pointer enters, no wait. */
+      .mock-search-input::after {
+        content: 'Just a mockup — try the Demo link below to search for real';
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%) translateY(-0.5rem);
+        background: #222;
+        color: #fff;
+        padding: 0.4em 0.8em;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.1s ease;
+        z-index: 10;
+      }
+      .mock-search-input:hover::after {
+        opacity: 1;
       }
       .mock-search-input .search-icon {
         flex-shrink: 0;
