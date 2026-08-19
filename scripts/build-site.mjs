@@ -10,11 +10,17 @@ import { fileURLToPath } from 'node:url'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const outDir = join(root, 'site')
 const distModule = join(root, 'dist', 'query-shaper.js')
+const localChatModule = join(root, 'node_modules', '@internetarchive', 'local-chat', 'dist', 'local-chat.js')
 
 if (!existsSync(distModule)) {
   console.error(
     `Missing ${distModule} — run \`npm run build\` first (or use \`npm run build:site\`, which does this for you).`,
   )
+  process.exit(1)
+}
+
+if (!existsSync(localChatModule)) {
+  console.error(`Missing ${localChatModule} — run \`npm install\` first.`)
   process.exit(1)
 }
 
@@ -40,6 +46,11 @@ cpSync(join(root, 'banner.png'), join(outDir, 'banner.png'))
 // same way.
 cpSync(distModule, join(outDir, 'query-shaper.js'))
 
+// docs/ additionally loads local-chat's own module (a devDependency, never a runtime
+// dependency of query-shaper itself) -- placed at the site root the same way, so its
+// rewritten script tag (../local-chat.js, see below) can reach it too.
+cpSync(localChatModule, join(outDir, 'local-chat.js'))
+
 // The landing page doesn't load the module at all (its mock search box is
 // decorative), so it's copied verbatim.
 cpSync(join(root, 'index.html'), join(outDir, 'index.html'))
@@ -49,14 +60,30 @@ cpSync(join(root, 'index.html'), join(outDir, 'index.html'))
 // docs/ also holds adr/ and agents/ (internal, maintainer-only), deliberately not
 // copied.
 for (const page of ['demo', 'docs']) {
-  const html = readFileSync(join(root, page, 'index.html'), 'utf8')
+  let html = readFileSync(join(root, page, 'index.html'), 'utf8')
   const rewritten = html.replace('src="../src/index.ts"', 'src="../query-shaper.js"')
   if (rewritten === html) {
     console.error(`Expected to rewrite a script src in ${page}/index.html but found nothing to replace.`)
     process.exit(1)
   }
+  html = rewritten
+
+  // docs/ also loads local-chat's dev-only node_modules path -- rewritten to the
+  // site-relative copy above the same way.
+  if (page === 'docs') {
+    const rewrittenLocalChat = html.replace(
+      'src="../node_modules/@internetarchive/local-chat/dist/local-chat.js"',
+      'src="../local-chat.js"',
+    )
+    if (rewrittenLocalChat === html) {
+      console.error(`Expected to rewrite local-chat's script src in ${page}/index.html but found nothing to replace.`)
+      process.exit(1)
+    }
+    html = rewrittenLocalChat
+  }
+
   mkdirSync(join(outDir, page), { recursive: true })
-  writeFileSync(join(outDir, page, 'index.html'), rewritten)
+  writeFileSync(join(outDir, page, 'index.html'), html)
 }
 
 console.log(`Wrote a self-contained site to ${outDir}:`)
@@ -65,6 +92,7 @@ console.log('  logo.svg')
 console.log('  logo.png')
 console.log('  banner.png')
 console.log('  query-shaper.js')
+console.log('  local-chat.js')
 console.log('  demo/index.html')
 console.log('  docs/index.html')
 console.log('\nCopy the contents of site/ to any static web server.')

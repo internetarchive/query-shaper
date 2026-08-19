@@ -114,15 +114,6 @@
         margin: 0;
         padding-left: 1.2em;
       }
-      aside.later {
-        border: 1px dashed #bbb;
-        border-radius: 8px;
-        padding: 0.75em 1em;
-        margin-block: 1.5rem;
-        color: #555;
-        font-size: 0.95em;
-      }
-
       #docs-search-bar {
         position: sticky;
         top: 0;
@@ -182,6 +173,10 @@
       query-shaper {
         position: relative;
         display: block;
+      }
+
+      local-chat {
+        --local-chat-accent: #333;
       }
     </style>
   </head>
@@ -732,17 +727,20 @@ query-shaper::part(option) {
       <p>See the table under <a href="#headless">Headless Mode &amp; Events</a> above.</p>
     </section>
 
-    <aside class="later">
-      Being considered, not built yet: an option to have a custom Action generate a direct
-      AI-written answer to your question (using the on-device model with this whole page as
-      context) instead of just linking to a section.
-    </aside>
-
     <footer>
       <p>With ♡ from the <a href="https://web.archive.org/">Wayback Machine</a> team at the <a href="https://archive.org/">Internet Archive</a></p>
     </footer>
 
+    <local-chat
+      icebreakers
+      starters='["What is Query Shaper?", "How do I install it on my page?", "How do I tell it about my search backend fields?", "How do I change the output format?"]'
+      logo="../logo.svg"
+      title="Query Shaper Help"
+      instructions="You are a helpful assistant answering questions about integrating &lt;query-shaper&gt;, based only on the provided documentation. If the documentation doesn't cover what's being asked, say so plainly instead of guessing. When your answer draws on one or a few specific sections, end it with a short 'See also' list reusing the matching markdown link(s) from the section links context verbatim, copied exactly as given -- never rewritten as a heading or anything else. Never invent, guess, or modify a link -- if no section link is genuinely relevant, omit the 'See also' list entirely rather than making one up. Only include this when it's genuinely helpful, not on every response."
+    ></local-chat>
+
     <script type="module" src="../src/index.ts"></script>
+    <script type="module" src="../node_modules/@internetarchive/local-chat/dist/local-chat.js"></script>
     <script type="module">
       const KNOWN_SECTIONS = new Set([
         'requirements',
@@ -783,6 +781,22 @@ query-shaper::part(option) {
         const heading = document.querySelector(`#${id} h2`)
         return heading ? heading.textContent : id
       }
+
+      // Built manually (not via context-selector) so the section links can be
+      // placed first, ahead of the full page text -- context-selector's own
+      // extraction always gets appended after the .context property by
+      // local-chat, and on a small on-device context window, the section
+      // links landing last got truncated/deprioritized often enough that the
+      // model fell back to inventing a plausible-looking but nonexistent URL.
+      // Links are given as literal markdown (not "Text: #anchor") so the model
+      // has an exact pattern to copy -- a bare "#anchor" was otherwise getting
+      // echoed back as a markdown heading (#) instead of a link.
+      const chat = document.querySelector('local-chat')
+      const sectionLinks = [...document.querySelectorAll('nav.toc a')]
+        .map((a) => `- [${a.textContent}](${a.getAttribute('href')})`)
+        .join('\n')
+      const sectionLinksBlock = `Section links -- reuse these exact markdown links verbatim when citing a section; never invent a different one:\n${sectionLinks}`
+      chat.context = `${sectionLinksBlock}\n\n${document.body.innerText.trim()}`
 
       function setNote(text) {
         note.textContent = text
