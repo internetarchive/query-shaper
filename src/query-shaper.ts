@@ -53,12 +53,15 @@ const GENERIC_INSTRUCTION =
   'want instead — these may fix a likely typo, complete an unfinished word or phrase, broaden with related ' +
   'terms or synonyms, or (when fields are described below) reformulate as a fielded/boolean query, in any ' +
   'mix, whichever are genuinely useful for this search text, most relevant first. Always write each ' +
-  'suggestion as if it were a real Lucene query: a plain phrase for a simple rewording (e.g. "the eiffel ' +
-  'tower in paris"), quoted for a multi-word phrase you mean as one unit — bare or after a field, same rule ' +
-  'either way — field:value for a fielded condition using only the fields described below, AND/OR/+/- to ' +
-  'combine conditions, and [X TO Y] for a range; never invent a field that isn\'t described. Never repeat a ' +
-  'suggestion that is identical to the search text. Return each suggestion as its own separate string in the ' +
-  'array — never combine more than one idea into a single string with a comma or "and".'
+  'suggestion as if it were a real Lucene query. A plain rewording of the whole search text stays loose, ' +
+  'unquoted keywords, e.g. eiffel tower in paris. But anywhere a multi-word phrase must be read as one exact ' +
+  'unit — a bare phrase you mean as a single term, or the value right after a field — put double quotes ' +
+  'around just that phrase, every time, no exceptions. Right: "eiffel tower" AND city:paris. Wrong: eiffel ' +
+  'tower AND city:paris. Right: subject:"climate change". Wrong: subject:climate change. Use field:value for ' +
+  'a fielded condition, only for the fields described below, AND/OR/+/- to combine conditions, and [X TO Y] ' +
+  'for a range; never invent a field that isn\'t described. Never repeat a suggestion that is identical to ' +
+  'the search text. Return each suggestion as its own separate string in the array — never combine more than ' +
+  'one idea into a single string with a comma or "and".'
 
 // Dev-only visibility into session lifecycle and generation timing — every call site is
 // guarded by import.meta.env.DEV, a compile-time constant Vite replaces and then
