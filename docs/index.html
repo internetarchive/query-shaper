@@ -104,6 +104,7 @@
         border-radius: 8px;
         padding: 1rem 1.25rem;
         margin-block: 1.5rem;
+        scroll-margin-top: 4.5rem;
       }
       nav.toc h2 {
         margin-top: 0;
@@ -163,16 +164,25 @@
         display: none;
       }
       #docs-search-note {
-        margin-block: 0.4em 0;
+        /* Negative top margin pulls the note up under the search input's own
+           bottom edge, closing the gap where its rounded bottom corners end
+           and this box's (deliberately border-top: none) top edge begins. */
+        margin-block: -0.3em 0;
+        padding: 0.5em 0.75em;
         font-size: 0.85em;
         color: #555;
         min-height: 1.2em;
+        border: 1px solid #ccc;
+        border-top: none;
+        border-radius: 0 0 6px 6px;
       }
       /* Toggled by the script below, explicitly, rather than trusting :empty
          -- collapses the reserved space entirely when there's no message. */
       #docs-search-note.docs-search-note-empty {
         margin: 0;
+        padding: 0;
         min-height: 0;
+        border: none;
       }
       #docs-search-results {
         list-style: none;
@@ -257,7 +267,7 @@
       <ul id="docs-search-results"></ul>
     </div>
 
-    <nav class="toc">
+    <nav class="toc" id="toc">
       <h2>On this page</h2>
       <ul>
         <li><a href="#requirements">Requirements</a></li>
@@ -828,6 +838,25 @@ query-shaper::part(option) {
         note.classList.toggle('docs-search-note-empty', text === '')
       }
 
+      // Shown when Suggestions come back empty or the model errors -- points
+      // the visitor at the table of contents instead of leaving them with
+      // nothing to act on.
+      function setNoteWithTocLink(text) {
+        note.textContent = ''
+        note.classList.remove('docs-search-note-empty')
+        const span = document.createElement('span')
+        span.textContent = `${text} `
+        const a = document.createElement('a')
+        a.href = '#toc'
+        a.textContent = 'Browse the table of contents'
+        a.addEventListener('click', () => {
+          input.value = ''
+          clearResults()
+          setNote('')
+        })
+        note.append(span, a)
+      }
+
       function clearResults() {
         results.innerHTML = ''
       }
@@ -898,11 +927,25 @@ query-shaper::part(option) {
         clearResults()
       })
       shaper.addEventListener('query-shaper-suggestions', (e) => {
-        setNote('')
         renderResults(e.detail.suggestions)
+        // A generation already in flight when the input got cleared can still
+        // resolve after the fact -- its result belongs to a query that no
+        // longer exists, so it shouldn't override the blank state the input
+        // handler above already set.
+        if (input.value.trim() === '') {
+          setNote('')
+        } else if (results.children.length === 0) {
+          setNoteWithTocLink('No matching section found.')
+        } else {
+          setNote('')
+        }
       })
       shaper.addEventListener('query-shaper-error', () => {
-        setNote('')
+        if (input.value.trim() === '') {
+          setNote('')
+        } else {
+          setNoteWithTocLink('Something went wrong.')
+        }
       })
 
       async function gate() {
