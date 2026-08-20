@@ -955,8 +955,8 @@ query-shaper::part(option) {
       }
       void gate()
 
-      // Focuses the search input on a bare "/" (GitHub's convention), unless
-      // focus is already on an editable field or anywhere inside <local-chat>
+      // Focuses the search input on a bare "/", unless focus is already on an
+      // editable field or anywhere inside <local-chat>
       // -- document.activeElement reports the host element itself whenever
       // focus is inside its shadow tree, so no need to drill in: either way
       // the visitor's attention is on the chat, and "/" shouldn't steal it.
