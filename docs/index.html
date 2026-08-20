@@ -776,19 +776,16 @@ query-shaper::part(option) {
     <script type="module" src="../src/index.ts"></script>
     <script type="module" src="../node_modules/@internetarchive/local-chat/dist/local-chat.js"></script>
     <script type="module">
-      const KNOWN_SECTIONS = new Set([
-        'requirements',
-        'installation',
-        'quick-start',
-        'fields',
-        'examples-notes',
-        'format',
-        'actions',
-        'history',
-        'styling',
-        'headless',
-        'reference',
-      ])
+      // One list of { id, title }, derived once from the on-page table of
+      // contents -- feeds both the section ids query-shaper's Suggestions are
+      // allowed to reference (renderResults below) and the section links
+      // given to local-chat as context (see below), rather than two separate,
+      // independently hand-maintained lists of the same data.
+      const sections = [...document.querySelectorAll('nav.toc a')].map((a) => ({
+        id: a.getAttribute('href').slice(1),
+        title: a.textContent,
+      }))
+      const sectionsById = new Map(sections.map((s) => [s.id, s.title]))
 
       const bar = document.querySelector('#docs-search-bar')
       const input = document.querySelector('#docs-search-input')
@@ -811,11 +808,6 @@ query-shaper::part(option) {
         markupPreview.textContent = formatElementMarkup(shaper)
       }
 
-      function sectionTitle(id) {
-        const heading = document.querySelector(`#${id} h2`)
-        return heading ? heading.textContent : id
-      }
-
       // Built manually (not via context-selector) so the section links can be
       // placed first, ahead of the full page text -- context-selector's own
       // extraction always gets appended after the .context property by
@@ -826,9 +818,7 @@ query-shaper::part(option) {
       // has an exact pattern to copy -- a bare "#anchor" was otherwise getting
       // echoed back as a markdown heading (#) instead of a link.
       const chat = document.querySelector('local-chat')
-      const sectionLinks = [...document.querySelectorAll('nav.toc a')]
-        .map((a) => `- [${a.textContent}](${a.getAttribute('href')})`)
-        .join('\n')
+      const sectionLinks = sections.map((s) => `- [${s.title}](#${s.id})`).join('\n')
       const sectionLinksBlock = `Section links -- reuse these exact markdown links verbatim when citing a section; never invent a different one:\n${sectionLinks}`
       chat.context = `${sectionLinksBlock}\n\n${document.body.innerText.trim()}`
 
@@ -848,12 +838,12 @@ query-shaper::part(option) {
           const match = /^section:(\S+)$/.exec(raw)
           if (!match) continue
           const id = match[1]
-          if (!KNOWN_SECTIONS.has(id) || seen.has(id)) continue
+          if (!sectionsById.has(id) || seen.has(id)) continue
           seen.add(id)
           const li = document.createElement('li')
           const a = document.createElement('a')
           a.href = `#${id}`
-          a.textContent = sectionTitle(id)
+          a.textContent = sectionsById.get(id)
           a.addEventListener('click', () => {
             shaper.accept(raw)
             input.value = ''
