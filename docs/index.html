@@ -126,13 +126,41 @@
       #docs-search-bar.visible {
         display: block;
       }
+      .docs-search-input-wrap {
+        position: relative;
+      }
       #docs-search-input {
         width: 100%;
         box-sizing: border-box;
-        padding: 0.6em 0.9em;
+        padding: 0.6em 2.2em 0.6em 0.9em;
         font-size: 1rem;
         border: 1px solid #aaa;
         border-radius: 6px;
+      }
+      /* Explicit, rather than relying on the browser's own default, so it's
+         guaranteed to match .docs-search-key's color exactly below. */
+      #docs-search-input::placeholder {
+        color: #999;
+      }
+      .docs-search-key {
+        position: absolute;
+        top: 50%;
+        right: 0.6em;
+        transform: translateY(-50%);
+        border: 1px solid #999;
+        border-radius: 4px;
+        padding: 0.05em 0.45em;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.85em;
+        color: #999;
+        pointer-events: none;
+      }
+      /* Hidden once focused (the visitor is already there, so the "how do I
+         get here" hint has done its job) or once there's text (type="search"
+         grows its own native clear (×) button in the same corner then). */
+      #docs-search-input:focus + .docs-search-key,
+      #docs-search-input:not(:placeholder-shown) + .docs-search-key {
+        display: none;
       }
       #docs-search-note {
         margin-block: 0.4em 0;
@@ -140,7 +168,9 @@
         color: #555;
         min-height: 1.2em;
       }
-      #docs-search-note:empty {
+      /* Toggled by the script below, explicitly, rather than trusting :empty
+         -- collapses the reserved space entirely when there's no message. */
+      #docs-search-note.docs-search-note-empty {
         margin: 0;
         min-height: 0;
       }
@@ -193,11 +223,15 @@
     </p>
 
     <div id="docs-search-bar">
-      <input
-        id="docs-search-input"
-        type="search"
-        placeholder="Ask a question about integrating &lt;query-shaper&gt;…"
-      />
+      <div class="docs-search-input-wrap">
+        <input
+          id="docs-search-input"
+          type="search"
+          placeholder="Describe what you need to jump to a relevant section"
+          aria-keyshortcuts="/"
+        />
+        <kbd class="docs-search-key" aria-hidden="true">/</kbd>
+      </div>
       <query-shaper
         id="docs-search-shaper"
         for="docs-search-input"
@@ -219,7 +253,7 @@
           {"input":"what attributes and events are available","suggestions":["section:reference"]}
         ]'
       ></query-shaper>
-      <p id="docs-search-note"></p>
+      <p id="docs-search-note" class="docs-search-note-empty"></p>
       <ul id="docs-search-results"></ul>
     </div>
 
@@ -628,10 +662,10 @@ query-shaper::part(option) {
   shaper.download()
 }</code></pre>
       <p>
-        The floating search box at the top of this page is itself exactly this kind of headless
-        instance: its Suggestions are section ids (<code>section:fields</code>, etc.) that this
-        page's own script turns into links, rather than search-backend syntax. Expand its markup
-        below:
+        The floating search box at the top of this page (visible only if your browser supports
+        on-device built-in AI) is itself exactly this kind of headless instance: its Suggestions
+        are section ids (<code>section:fields</code>, etc.) that this page's own script turns into
+        links, rather than search-backend syntax. Expand its markup below:
       </p>
       <details>
         <summary><code>&lt;query-shaper for="docs-search-input" headless ... /&gt;</code></summary>
@@ -800,6 +834,7 @@ query-shaper::part(option) {
 
       function setNote(text) {
         note.textContent = text
+        note.classList.toggle('docs-search-note-empty', text === '')
       }
 
       function clearResults() {
@@ -837,6 +872,36 @@ query-shaper::part(option) {
         }
       })
 
+      // Arrow-key navigation between the result links, and from the input into
+      // the list -- delegated (queried fresh on each keypress) rather than bound
+      // per-link, since renderResults() rebuilds the list on every new query.
+      function resultLinks() {
+        return [...results.querySelectorAll('a')]
+      }
+      input.addEventListener('keydown', (e) => {
+        const links = resultLinks()
+        if (links.length === 0) return
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          links[0].focus()
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          links[links.length - 1].focus()
+        }
+      })
+      results.addEventListener('keydown', (e) => {
+        const links = resultLinks()
+        const index = links.indexOf(e.target)
+        if (index === -1) return
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          links[Math.min(index + 1, links.length - 1)].focus()
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          links[Math.max(index - 1, 0)].focus()
+        }
+      })
+
       shaper.addEventListener('query-shaper-generating', () => {
         setNote('Searching…')
         clearResults()
@@ -869,6 +934,7 @@ query-shaper::part(option) {
           const status = e.detail.status
           if (status === 'downloadable') {
             note.textContent = ''
+            note.classList.remove('docs-search-note-empty')
             note.id = 'docs-download-prompt'
             const text = document.createElement('span')
             text.textContent = 'AI-powered search needs to download the on-device model.'
@@ -879,15 +945,29 @@ query-shaper::part(option) {
             note.appendChild(text)
             note.appendChild(button)
           } else if (status === 'downloading') {
-            note.removeAttribute('id')
+            note.id = 'docs-search-note'
             setNote('Downloading the on-device model. This can take a while on first load.')
           } else if (status === 'available') {
-            note.removeAttribute('id')
+            note.id = 'docs-search-note'
             setNote('')
           }
         })
       }
       void gate()
+
+      // Focuses the search input on a bare "/" (GitHub's convention), unless
+      // focus is already on an editable field or anywhere inside <local-chat>
+      // -- document.activeElement reports the host element itself whenever
+      // focus is inside its shadow tree, so no need to drill in: either way
+      // the visitor's attention is on the chat, and "/" shouldn't steal it.
+      document.addEventListener('keydown', (e) => {
+        if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return
+        const active = document.activeElement
+        const isEditable = active?.tagName === 'INPUT' || active?.tagName === 'TEXTAREA' || active?.isContentEditable
+        if (isEditable || active?.tagName === 'LOCAL-CHAT') return
+        e.preventDefault()
+        input.focus()
+      })
     </script>
   </body>
 </html>
