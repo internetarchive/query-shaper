@@ -42,6 +42,24 @@ describe('QueryShaper Examples', () => {
     expect(shaper.examples).toEqual([{ input: 'c', suggestions: ['d'] }])
   })
 
+  it('parses a JSON string set via the .examples property the same way the attribute is', () => {
+    const shaper = new QueryShaper()
+    document.body.appendChild(shaper)
+
+    shaper.examples = '[{"input":"cheap electronics","suggestions":["price:[0 TO 50]"]}]'
+
+    expect(shaper.examples).toEqual([{ input: 'cheap electronics', suggestions: ['price:[0 TO 50]'] }])
+  })
+
+  it('falls back to the raw string when the .examples property is not valid JSON', () => {
+    const shaper = new QueryShaper()
+    document.body.appendChild(shaper)
+
+    shaper.examples = 'not valid json'
+
+    expect(shaper.examples).toBe('not valid json')
+  })
+
   it('includes Examples in the append() call that primes the instance session, alongside Fields', async () => {
     const lm = mockLanguageModel({ promptResponse: { suggestions: [] } })
     ;(globalThis as { LanguageModel?: unknown }).LanguageModel = lm

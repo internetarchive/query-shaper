@@ -12,6 +12,19 @@ export type Fields = string | FieldDescriptor[]
 export type Example = { input: string; suggestions: string[] }
 export type Examples = string | Example[]
 
+/**
+ * Attempts JSON.parse, falling back to the raw string on failure -- shared
+ * by Fields/Examples' attribute and property forms alike, so a string is
+ * interpreted identically regardless of which one sets it.
+ */
+function parseJsonOr<T>(raw: string): T | string {
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    return raw
+  }
+}
+
 export type FieldValue = { field?: string; value: string; operator?: string }
 export type FormatPreset = 'lucene' | 'url-params' | 'simple-query-string'
 export type FormatRenderer = (fields: FieldValue[]) => string
@@ -239,14 +252,11 @@ export class QueryShaper extends HTMLElement {
   #hasFieldsOverride = false
 
   get fields(): Fields | undefined {
-    if (this.#hasFieldsOverride) return this.#fieldsOverride
-    const attr = this.getAttribute('fields')
-    if (attr === null) return undefined
-    try {
-      return JSON.parse(attr)
-    } catch {
-      return attr
+    if (this.#hasFieldsOverride) {
+      return typeof this.#fieldsOverride === 'string' ? parseJsonOr<FieldDescriptor[]>(this.#fieldsOverride) : this.#fieldsOverride
     }
+    const attr = this.getAttribute('fields')
+    return attr === null ? undefined : parseJsonOr<FieldDescriptor[]>(attr)
   }
 
   set fields(value: Fields | undefined) {
@@ -258,14 +268,11 @@ export class QueryShaper extends HTMLElement {
   #hasExamplesOverride = false
 
   get examples(): Examples | undefined {
-    if (this.#hasExamplesOverride) return this.#examplesOverride
-    const attr = this.getAttribute('examples')
-    if (attr === null) return undefined
-    try {
-      return JSON.parse(attr)
-    } catch {
-      return attr
+    if (this.#hasExamplesOverride) {
+      return typeof this.#examplesOverride === 'string' ? parseJsonOr<Example[]>(this.#examplesOverride) : this.#examplesOverride
     }
+    const attr = this.getAttribute('examples')
+    return attr === null ? undefined : parseJsonOr<Example[]>(attr)
   }
 
   set examples(value: Examples | undefined) {

@@ -28,10 +28,12 @@ architecture.
 attribute value is JSON-parsed first; if that fails, treated as a free-form
 description string (e.g. `"title, author, language:iso-639-1, date (allowed
 patterns YYYY[-MM[-DD]]), categories (comma-separated list)"`). The parsed
-JSON form is a bare array of field descriptors. The `.fields` property
-always wins when both are set. Absent entirely → the model is never told
-about any fields; a Suggestion that references one anyway is dropped
-rather than shown (see "Generation flow" below).
+JSON form is a bare array of field descriptors. A string set via the
+`.fields` property is parsed exactly the same way (an already-structured
+array set via the property is used as-is, no parsing involved). The
+`.fields` property always wins when both are set. Absent entirely → the
+model is never told about any fields; a Suggestion that references one
+anyway is dropped rather than shown (see "Generation flow" below).
 
 **`examples`** (attribute or `.examples` property, optional): few-shot
 input/Suggestion pairs primed alongside Fields, one time, into the same
@@ -41,7 +43,9 @@ string; suggestions: string[] }`, each entry's Search Text paired with
 every good Suggestion for it — an array, matching the real shape
 `query-shaper-suggestions` returns, since an input can have more than one
 valid answer); if parsing fails, treated as a free-form string passed
-through as-is, same fallback as `fields`. Exists because free-text
+through as-is, same fallback as `fields` — and, like `fields`, a string
+set via the `.examples` property is parsed exactly the same way the
+attribute is. Exists because free-text
 Suggestion generation (see "Generation flow" below) turned out to need
 concrete, backend-specific demonstrations of real `field:value` syntax
 more than the old tuple-schema design did — without it, the model

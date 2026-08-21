@@ -38,4 +38,22 @@ describe('QueryShaper Fields', () => {
 
     expect(shaper.fields).toEqual([{ name: 'author' }])
   })
+
+  it('parses a JSON string set via the .fields property the same way the attribute is', () => {
+    const shaper = new QueryShaper()
+    document.body.appendChild(shaper)
+
+    shaper.fields = '[{"name":"title"}]'
+
+    expect(shaper.fields).toEqual([{ name: 'title' }])
+  })
+
+  it('falls back to the raw string when the .fields property is not valid JSON', () => {
+    const shaper = new QueryShaper()
+    document.body.appendChild(shaper)
+
+    shaper.fields = 'title, author, language:iso-639-1'
+
+    expect(shaper.fields).toBe('title, author, language:iso-639-1')
+  })
 })
